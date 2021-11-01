@@ -3,25 +3,20 @@ title: "Overview"
 author: "Sven Lautenbach, Marcel Reinmuth, Steffen Knoblauch"
 date: "`r Sys.Date()`"
 output:
-  html_document:
-    toc: true
-    toc_float:
-      collapsed: true
-      smooth_scroll: true
-    toc_depth: 2
   rmdformats::readthedown:
     highlight: kate
-editor_options: 
-  chunk_output_type: inline
+    gallery: TRUE
+    lightbox: TRUE
+    thumbnails: TRUE
 ---
 
 This is the overview document on materials for the workshop: **Introduction GIS Tools /spatial epidemiology** at [Global Health Academy](https://global-health-academy.de/).
 
 Authors:
 
- * [Dr.Sven Lautenbach](https://www.geog.uni-heidelberg.de/gis/lautenbach.html)
- * [Marcel Reinmuth](https://heigit.org/heigit-team/)
- * [Steffen Knoblauch](https://www.geog.uni-heidelberg.de/gis/knoblauch.html)
+ * [Dr. Sven Lautenbach](https://www.geog.uni-heidelberg.de/gis/lautenbach.html) <a href = "mailto: sven.lautenbach@heigit.org">[Contact Email]</a>
+ * [Marcel Reinmuth](https://heigit.org/heigit-team/) <a href = "mailto: marcel.reinmuth@heigit.org">[Contact Email]</a> 
+ * [Steffen Knoblauch](https://www.geog.uni-heidelberg.de/gis/knoblauch.html)  <a href = "mailto: steffen.knoblauch@uni-heidelberg.de">[Contact Email]</a> 
  
  
 Session description: 
@@ -32,6 +27,8 @@ See here the course details: [Introduction GIS Tools /spatial epidemiology](http
 
 
 ## How to use these tutorials?
+
+**Code**
 
 The materials were created with R and the R package `rmarkdown`. The
 source are multiple R-markdown document that can be
@@ -46,13 +43,23 @@ but simpler). To do this, take the following steps:
 6. In RStudio, click "knit" to recreate the entire rendered document, which _runs all the R chunks_
 7. For running individual R chunks, (notebook "cells"), use the arrows "Run all chunks above", after which you can use "Run current chunk"
 
+**Data**
+
+Due to limited time, data acquisition and preprocessing will not be covered in the workshop.
+In order to be able to run the `*.rmd` files yourself, make sure you have copied the `.Rdata` files from
+[this heiBOX folder](https://heibox.uni-heidelberg.de/d/7e9c2b8b8da24a718575/). 
+
+Alternatively you can run the acquisition and processing from scratch with the []() script.
 
 ## Sessions
 
-* [Whats special about spatial](https://giscience.github.io/global-health-academy/01intro.html)
-* [Cartography](https://giscience.github.io/global-health-academy/02cartography.html)
-* [Spatial processes]()
-* [Spatial analysis]()
+> TODO add all final links
+
+* [01 - Whats special about spatial](https://giscience.github.io/global-health-academy/01spatial.html)
+* [02 - Spatial Visualization or Maps](https://giscience.github.io/global-health-academy/02cartography.html)
+* [03 - ]()
+* [04 - ]()
+* [05 - ]()
 
 ---
 
