@@ -1,0 +1,313 @@
+---
+title: "Spatial Visualization or Maps"
+author: "Marcel Reinmuth"
+date: "`r Sys.Date()`"
+output:
+  rmdformats::readthedown:
+    highlight: kate
+    gallery: TRUE
+    lightbox: TRUE
+    thumbnails: TRUE
+---
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+library(rmdformats)
+require(animation)
+require(sf)
+require(tmap)
+require(tidyverse)
+library(cartogram)
+library(kableExtra)
+
+## Global options
+options(max.print="75")
+opts_chunk$set(echo=FALSE,
+	             cache=TRUE,
+               prompt=FALSE,
+               tidy=TRUE,
+               comment=NA,
+               message=FALSE,
+               warning=FALSE)
+opts_knit$set(width=75)
+```
+
+
+```{r load input data}
+load("data/kreiseWithCovidMeldedatumWeekly.Rdata")
+load("data/kreiseWithCovidMeldeWeeklyCleaned_pts10k.Rdata")
+load("data/kreiseWithCovidMeldeWeeklyCleaned_cart.Rdata")
+
+# latest incidence
+kreiseWithCovidMeldeWeeklyCleaned$current_incidence <- kreiseWithCovidMeldeWeeklyCleaned$casesWeek_2021_10_06 /kreiseWithCovidMeldeWeeklyCleaned$EWZ * 10 ^5
+kreiseWithCovidMeldeWeeklyCleaned_dorling <- kreiseWithCovidMeldeWeeklyCleaned %>% cartogram_dorling("EWZ")
+
+```
+
+## Incidence map
+
+* Visualizing spatial data in R is straightforward with the `plot()` function.
+* Quick and simple plots help to better understand the data or optical verify results of an operation.
+* More sophisticated maps can be done with `tmap` or `ggplot`.
+
+
+
+```{r droling cartogram, echo=T, out.width="100%"}
+plot(kreiseWithCovidMeldeWeeklyCleaned["current_incidence"])
+
+
+tm_shape(kreiseWithCovidMeldeWeeklyCleaned) + # spatial dataframe
+  tm_polygons(  # type of visualization. for vectors: polygons, lines/borders, dots/symbols
+    "current_incidence", # attribute field
+    breaks = c(0, 5, 25, 50, 100, 250, 500, 1000), # class breaks
+    legend.hist = TRUE, # show a histogram
+    legend.reverse = T, # reverse the legend
+    palette = "-plasma", # use plasma color ramp
+    title = "Incidence 10/06/2021" # legend title
+  ) +
+  tm_layout(
+    legend.show = T, 
+    legend.outside = TRUE,
+    bg.color = "darkgrey", 
+    outer.bg.color = "lightgrey", 
+    attr.outside = TRUE,
+    legend.hist.width = .5,
+    legend.hist.height = .5,
+    legend.outside.position = "left"
+  )
+```
+
+* Maps that are not well thought out can lead to false assumptions
+* Choropleth maps: pre-defined areas are symbolized by an attribute
+* But is the attribute true for the whole area covered?
+* We don't know about the distribution within the pre-defined areas
+* _Modifiable area unit problem_ --> statistical bias from aggregating point phenomenons on arbitrary boundaries like districts
+* Well we don't have the exact point referenced incidence data nor a higher resolution on e.g. community/neighborhood level
+* But we work with incidence rates and we know the population per district
+
+
+```{r area vs population,  out.width="100%"}
+# filter the 10 largest kreise by area and population 
+kreiseWithCovidMeldeWeeklyCleaned$area <- st_area(kreiseWithCovidMeldeWeeklyCleaned$geometry)
+biggest_kreise <- kreiseWithCovidMeldeWeeklyCleaned %>% arrange(desc(area)) %>% head(10)
+populous_kreise <- kreiseWithCovidMeldeWeeklyCleaned %>% arrange(desc(EWZ)) %>% head(10)
+
+t.1 <- tm_shape(kreiseWithCovidMeldeWeeklyCleaned) + tm_borders() +
+  tm_shape(biggest_kreise) +
+  tm_polygons(
+    "current_incidence",
+    #lwd=0.0001,
+    breaks = c(0, 5, 25, 50, 100, 250, 500, 1000),
+    legend.hist = F,
+    legend.reverse = T,
+    palette = "-plasma",
+  ) +
+  tm_layout(
+    main.title="Largest by area",
+    legend.show = F,
+    legend.outside = TRUE,
+    bg.color = "darkgrey",
+    outer.bg.color = "lightgrey",
+    attr.outside = TRUE,
+    legend.hist.width = .5,
+    legend.hist.height = .5,
+    legend.outside.position = "left"
+  )
+
+t.2 <- tm_shape(kreiseWithCovidMeldeWeeklyCleaned) + tm_borders() +
+  tm_shape(populous_kreise) +
+  tm_polygons(
+    "current_incidence",
+    #lwd=0.0001,
+    breaks = c(0, 5, 25, 50, 100, 250, 500, 1000),
+    legend.hist = F,
+    legend.reverse = T,
+    palette = "-plasma",
+  ) +
+  tm_layout(
+    main.title="Largest by pop.",
+    legend.show = F,
+    legend.outside = TRUE,
+    bg.color = "darkgrey",
+    outer.bg.color = "lightgrey",
+    attr.outside = TRUE,
+    legend.hist.width = .5,
+    legend.hist.height = .5,
+    legend.outside.position = "left"
+  )
+tmap_arrange(t.1,t.2)
+```
+
+* There is no direct correlation between county area and county population
+* This can be problematic if for instance a couple of large areal units are affected by high incidence rates, but small populous are not
+* Its the same the other way around
+
+|   | Area % | Pop %  |
+|---|---|---|
+| Largest Units by area  |  `r round(sum(biggest_kreise$area) / sum(kreiseWithCovidMeldeWeeklyCleaned$area),3) * 100` |  `r round(sum(biggest_kreise$EWZ) / sum(kreiseWithCovidMeldeWeeklyCleaned$EWZ),3) * 100` |
+| Largest Units by pop  | `r round(sum(populous_kreise$area) / sum(kreiseWithCovidMeldeWeeklyCleaned$area),3) * 100`  | `r round(sum(populous_kreise$EWZ) / sum(kreiseWithCovidMeldeWeeklyCleaned$EWZ),3) * 100`  |
+
+
+## Alternative respresentations - cartograms
+
+With the `cartograms` package we can transform our areal units by the population attribute. This way we include the absolute amount of population per unit to normalize the cartogram.
+
+1. The point distribution map randomly distributes a point for every 10,000th inhabitant
+2. The area distorted cartogram [(Dougenik et al. 1985)](https://doi.org/10.1111/j.0033-0124.1985.00075.x) expands/shrinks polygons via a rubber sheet distortion algorithm
+3. The dorling cartogram [(Dorling 1996)](https://ora.ox.ac.uk/objects/uuid:5e9483f5-3e1c-4038-b10f-d09c5767c285) builds non-overlapping circles where the size represents attribute for normalization.
+
+```{r cartograms,  out.width="100%"}
+# point distribution
+tm_shape(kreiseWithCovidMeldeWeeklyCleaned) + tm_fill(col = "grey70", lwd = .5) +
+  tm_shape(kreiseWithCovidMeldeWeeklyCleaned_pts10k) + tm_dots(
+    col = "current_incidence",
+    size = 0.01,
+    shape = 20,
+    breaks =  c(0, 5, 25, 50, 100, 250, 500, 1000),
+    palette = "-plasma",
+    title = "Incidence 10/06/2021"
+  ) +
+  tm_shape(kreiseWithCovidMeldeWeeklyCleaned) + tm_borders(lwd = .5) +
+  tm_layout(
+    main.title = "Point distribution map",
+    legend.show = T,
+    legend.outside = TRUE,
+    bg.color = "grey95",
+    outer.bg.color = "lightgrey",
+    attr.outside = TRUE,
+    legend.hist.width = .5,
+    legend.hist.height = .5,
+    legend.outside.position = "left"
+  )
+
+
+
+# carto
+tm_shape(kreiseWithCovidMeldeWeeklyCleaned_cart) +
+  tm_polygons(
+    "current_incidence",
+    #lwd=0.0001,
+    breaks = c(0, 5, 25, 50, 100, 250, 500, 1000),
+    legend.hist = TRUE,
+    legend.reverse = T,
+    palette = "-plasma",
+    title = "Incidence 10/06/2021"
+  ) +
+  tm_layout(
+    main.title = "Area distorted cartogram",
+    legend.show = T,
+    legend.outside = TRUE,
+    bg.color = "grey95",
+    outer.bg.color = "lightgrey",
+    attr.outside = TRUE,
+    legend.hist.width = .5,
+    legend.hist.height = .5,
+    legend.outside.position = "left"
+  )
+
+
+
+# dorling
+tm_shape(kreiseWithCovidMeldeWeeklyCleaned_dorling) +
+  tm_polygons(
+    "current_incidence",
+    #lwd=0.0001,
+    breaks = c(0, 5, 25, 50, 100, 250, 500, 1000),
+    legend.hist = TRUE,
+    legend.reverse = T,
+    palette = "-plasma",
+    title = "Incidence 10/06/2021"
+  ) +
+  tm_layout(
+    main.title = "Dorling cartogram",
+    legend.show = T,
+    legend.outside = TRUE,
+    bg.color = "grey95",
+    outer.bg.color = "lightgrey",
+    attr.outside = TRUE,
+    legend.hist.width = .5,
+    legend.hist.height = .5,
+    legend.outside.position = "left"
+  )
+```
+
+
+## Weekly animation
+
+With R and `ffmpeg` we are able to produce simple animations. Here is the example of the weekly incidence rate and it's change from the previous week.
+
+> TODO link to code how to reproduce the video
+
+<iframe width="860" height="480" src="https://heibox.uni-heidelberg.de/f/17ce76bc5fde45b29b6b/?dl=1" frameborder="0" allowfullscreen></iframe>
+
+
+The table below lists selected covid related events in Germany by date.
+```{r}
+table_event <- read.csv(header=T,text=('
+              "Date", "Event"
+              "22.02.2020","Karneval (Rheinland)"
+              "27.02.2020","Heinsberg Hotspot"
+              "09.03.2020","Ischgl Hotspot"
+              "18.03.2020","TV Speech Chancelor Angela Merkel"
+              "22.03.2020","Begin Lockdown 1"
+              "02.04.2020","Peak wave 1"
+              "12.04.2020","Easter 2020"
+              "15.06.2020","Tönnies Skandal"
+              "28.10.2020","Begin lockdown 2"
+              "28.10.2020","Reinforcement measures lockdown 2"
+              "22.12.2020","Peak wave 2"
+              "25.12.2020","Christmas 2020"
+              "04.04.2021","Easter 2021"
+              "23.04.2021","Begin Lockdown 3 (Bundesnotbremse)"
+              "25.04.2021","Peak wave 3"'))
+
+table_event %>% 
+  kbl() %>% 
+  kable_paper("hover", full_width = T, bootstrap_options="striped")
+
+
+```
+
+
+## Bivariate maps
+
+In a later session we will assess what socio-economic factors may be linked to incidence rates. A simple first approach to visually compare the relation of two variables is a bivariate map. The two variables are classified into three quantiles and combined to 9.
+
+```{r echo=FALSE, fig.cap = "Bivariate Classification scheme ( Joshua Stevens https://www.joshuastevens.net/cartography/make-a-bivariate-choropleth-map/)", fig.align="left"}
+knitr::include_graphics("https://www.joshuastevens.net/images/js_bivariateMix.gif")
+```
+
+
+
+Below an example of incidence rate and X.
+
+
+
+```{r bivariate,  out.width="100%"}
+source("bivariate_maps.R")
+
+kreiseWithCovidMeldeWeeklyCleaned$area <- as.numeric(st_area(kreiseWithCovidMeldeWeeklyCleaned$geometry)/1000000)
+
+legend.viewport <- viewport(
+  x = .2,
+  y = .2,
+  width = .4,
+  height = .5
+)
+
+create_bivar_map(
+  crs_prj =25832,
+  dataset = kreiseWithCovidMeldeWeeklyCleaned,
+  x = "area",
+  y = "EWZ",
+  x_label = "Area",
+  y_label = "Incidence",
+  col.rmp = pals::stevens.pinkgreen(9),
+  ival.method = "quantile",
+  fntsize = .75,
+  vp = legend.viewport
+)
+
+
+```
