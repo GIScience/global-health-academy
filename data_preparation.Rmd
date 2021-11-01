@@ -24,6 +24,33 @@ require(tidyquant)
 require(readODS)
 ```
 
+**Execute this chunk to download all processed data from HeiBOX (no auto eval.)**
+
+```{r, eval=F}
+options(timeout = 10000)
+download.file("https://heibox.uni-heidelberg.de/f/73543894e5bf480098a7/?dl=1", destfile = "data/berlin_bezirke.gpkg")
+
+download.file("https://heibox.uni-heidelberg.de/f/688742ca5fa54f229875/?dl=11", destfile = "data/inkarKreisstatistik_preprocessed.Rdata")
+
+download.file("https://heibox.uni-heidelberg.de/f/db649c3acf27413394dc/?dl=1", destfile = "data/kreiseWithCovidByMeldedatum.Rdata")
+
+download.file("https://heibox.uni-heidelberg.de/f/22ccf46c9ebb40e29d57/?dl=1", destfile = "data/kreiseWithCovidByRefdatum.Rdata")
+
+download.file("https://heibox.uni-heidelberg.de/f/a22aa60f88554c3bb046/?dl=1", destfile = "data/kreiseWithCovidMeldedatumWeekly.Rdata")
+
+download.file("https://heibox.uni-heidelberg.de/f/6b3c8a74936b475bad81/?dl=1", destfile = "data/kreiseWithCovidMeldedatumWeeklyPredictors.Rdata")
+
+download.file("https://heibox.uni-heidelberg.de/f/00f40e56ec5441548f22/?dl=1", destfile = "data/kreiseWithCovidMeldeWeeklyCleaned_cart.Rdata")
+
+download.file("https://heibox.uni-heidelberg.de/f/44e7b8c0536140b1ba1c/?dl=1", destfile = "data/kreiseWithCovidMeldeWeeklyCleaned_pts10k.Rdata")
+
+download.file("https://heibox.uni-heidelberg.de/f/08fe927df4824a6d86b6/?dl=1", destfile = "data/nationalAggCases.Rdata")
+
+download.file("https://heibox.uni-heidelberg.de/f/0f53db83f74f48e393f0/?dl=1", destfile = "data/unionedListw_d_berlinNotSubdivided.Rdata")
+
+```
+
+
 # Data acquisition
 
 -   COVID 19 case data by RKI, manual download and metadata here: <https://www.arcgis.com/home/item.html?id=f10774f1c63e40168479a1feb6c7ca74>
