@@ -8,8 +8,10 @@ output:
     gallery: TRUE
     lightbox: TRUE
     thumbnails: TRUE
+editor_options: 
+  chunk_output_type: console
 ---
----
+
 
 ```{r setup, include=FALSE}
 library(knitr)
@@ -24,7 +26,7 @@ library(kableExtra)
 ## Global options
 options(max.print="75")
 opts_chunk$set(echo=FALSE,
-	             cache=TRUE,
+	             cache=F,
                prompt=FALSE,
                tidy=TRUE,
                comment=NA,
@@ -38,10 +40,19 @@ opts_knit$set(width=75)
 load("data/kreiseWithCovidMeldedatumWeekly.Rdata")
 load("data/kreiseWithCovidMeldeWeeklyCleaned_pts10k.Rdata")
 load("data/kreiseWithCovidMeldeWeeklyCleaned_cart.Rdata")
+load("data/kreiseWithCovidMeldedatumWeeklyPredictors.Rdata")
 
 # latest incidence
-kreiseWithCovidMeldeWeeklyCleaned$current_incidence <- kreiseWithCovidMeldeWeeklyCleaned$casesWeek_2021_10_06 /kreiseWithCovidMeldeWeeklyCleaned$EWZ * 10 ^5
+kreiseWithCovidMeldeWeeklyCleaned$current_incidence <- kreiseWithCovidMeldeWeeklyCleaned$casesWeek_2021_10_03 /kreiseWithCovidMeldeWeeklyCleaned$EWZ * 10 ^5
 kreiseWithCovidMeldeWeeklyCleaned_dorling <- kreiseWithCovidMeldeWeeklyCleaned %>% cartogram_dorling("EWZ")
+
+#kreiseWithCovidMeldeWeeklyCleaned_cart <- kreiseWithCovidMeldeWeeklyCleaned %>% cartogram_cont("EWZ")
+#save(kreiseWithCovidMeldeWeeklyCleaned_cart, file="data/kreiseWithCovidMeldeWeeklyCleaned_cart.Rdata")
+
+#kreiseWithCovidMeldeWeeklyCleaned_pts10k <- kreiseWithCovidMeldeWeeklyCleaned %>% rowwise() %>% mutate(
+#geometry=st_union(st_sample(geometry, size = EWZ / 10000)))
+#save(kreiseWithCovidMeldeWeeklyCleaned_pts10k, file="data/kreiseWithCovidMeldeWeeklyCleaned_pts10k.Rdata")
+
 
 ```
 
@@ -64,7 +75,7 @@ tm_shape(kreiseWithCovidMeldeWeeklyCleaned) + # spatial dataframe
     legend.hist = TRUE, # show a histogram
     legend.reverse = T, # reverse the legend
     palette = "-plasma", # use plasma color ramp
-    title = "Incidence 10/06/2021" # legend title
+    title = "Incidence 10/03/2021" # legend title
   ) +
   tm_layout(
     legend.show = T, 
@@ -166,7 +177,7 @@ tm_shape(kreiseWithCovidMeldeWeeklyCleaned) + tm_fill(col = "grey70", lwd = .5) 
     shape = 20,
     breaks =  c(0, 5, 25, 50, 100, 250, 500, 1000),
     palette = "-plasma",
-    title = "Incidence 10/06/2021"
+    title = "Incidence 10/03/2021"
   ) +
   tm_shape(kreiseWithCovidMeldeWeeklyCleaned) + tm_borders(lwd = .5) +
   tm_layout(
@@ -192,7 +203,7 @@ tm_shape(kreiseWithCovidMeldeWeeklyCleaned_cart) +
     legend.hist = TRUE,
     legend.reverse = T,
     palette = "-plasma",
-    title = "Incidence 10/06/2021"
+    title = "Incidence 10/03/2021"
   ) +
   tm_layout(
     main.title = "Area distorted cartogram",
@@ -217,7 +228,7 @@ tm_shape(kreiseWithCovidMeldeWeeklyCleaned_dorling) +
     legend.hist = TRUE,
     legend.reverse = T,
     palette = "-plasma",
-    title = "Incidence 10/06/2021"
+    title = "Incidence 10/03/2021"
   ) +
   tm_layout(
     main.title = "Dorling cartogram",
@@ -237,7 +248,6 @@ tm_shape(kreiseWithCovidMeldeWeeklyCleaned_dorling) +
 
 With R and `ffmpeg` we are able to produce simple animations. Here is the example of the weekly incidence rate and it's change from the previous week.
 
-> TODO link to code how to reproduce the video
 
 <iframe width="860" height="480" src="https://heibox.uni-heidelberg.de/f/17ce76bc5fde45b29b6b/?dl=1" frameborder="0" allowfullscreen></iframe>
 
@@ -280,14 +290,12 @@ knitr::include_graphics("https://www.joshuastevens.net/images/js_bivariateMix.gi
 
 
 
-Below an example of incidence rate and X.
+Below an example of incidence all cases per Kreis and supply of broadband connection.
 
 
 
-```{r bivariate,  out.width="100%"}
-source("bivariate_maps.R")
-
-kreiseWithCovidMeldeWeeklyCleaned$area <- as.numeric(st_area(kreiseWithCovidMeldeWeeklyCleaned$geometry)/1000000)
+```{r bivariate,  out.width="100%", echo=T}
+source("aux/bivariate_maps.R")
 
 legend.viewport <- viewport(
   x = .2,
@@ -298,11 +306,11 @@ legend.viewport <- viewport(
 
 create_bivar_map(
   crs_prj =25832,
-  dataset = kreiseWithCovidMeldeWeeklyCleaned,
-  x = "area",
-  y = "EWZ",
-  x_label = "Area",
-  y_label = "Incidence",
+  dataset = kreiseWithCovidMeldeWeeklyCleanedPredictorsAdded,
+  x = "sumCasesTotal",
+  y = "Breitbandversorgung",
+  x_label = "Current incidence",
+  y_label = "Broadband supply",
   col.rmp = pals::stevens.pinkgreen(9),
   ival.method = "quantile",
   fntsize = .75,

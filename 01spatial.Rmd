@@ -1,0 +1,212 @@
+---
+title: "What's special about spatial"
+author: "Marcel Reinmuth"
+date: "`r Sys.Date()`"
+output:
+  rmdformats::readthedown:
+    highlight: kate
+    gallery: TRUE
+    lightbox: TRUE
+    thumbnails: TRUE
+---
+```{r setup, include=FALSE}
+library(knitr)
+library(rmdformats)
+require(animation)
+require(sf)
+require(tmap)
+require(tidyverse)
+library(cartogram)
+library(kableExtra)
+library(spdep)
+
+## Global options
+options(max.print="75")
+opts_chunk$set(echo=FALSE,
+	             cache=F,
+               prompt=FALSE,
+               tidy=TRUE,
+               comment=NA,
+               message=FALSE,
+               warning=FALSE)
+opts_knit$set(width=75)
+```
+## What is (Geo) Spatial Data?
+
+All data are spatial - data comes from observation, and observation needs to happen somewhere and at some time. This makes all data spatial. For a lot of data, the location expressed in spatial, Earth-bound coordinates of observation is not of prime importance:
+
+  * if a patient undergoes a brain scan, the location of the scanner is not important; the location of the person relative to the scanner is
+  *  if a person receives a positive COVID-19 test result, the location of testing may not be important for the person’s decision on whether to go into quarantine or not
+  * for someone trying to do contact tracing, this person’s location history may be most relevant, however
+
+With spatial data we mean data for which spatial locations (or relations) are known, and for which they play a role in the exploration, analysis or visualization of the data.
+
+_by Edzer Pebesma_
+
+Another explanation:
+
+**Spatial data** is information about a phenomena organized in a spatial frame - the geographic frame
+
+**Spatial analysis** then is a collection of methods applied to spatial data that
+
+* add value
+* reveal, explain patterns and anomalies
+* support decisions
+
+GeoData and spatial data? Often used synonymous. Geo explicitly means earth as the spatial reference
+
+Geographic Information Systems is another term often used to describe spatial data or spatial analysis.
+Often it refers to (desktop) software that is driven at its heart by spatial data but has many other tasks besides spatial analysis such as visualization, editing and management.
+
+**Layer Principle**
+
+
+![](https://heibox.uni-heidelberg.de/f/6311075c02424d50bc7d/?dl=1)
+
+## Data for this workshop
+
+We use already preprocessed datasets. If you are interested in running the data preparation yourself please use the script here: [https://github.com/GIScience/global-health-academy/blob/main/data_preparation.Rmd](https://github.com/GIScience/global-health-academy/blob/main/data_preparation.Rmd). 
+The data origin is:
+
+1. RKI COVID 19 daily reportings: [https://www.arcgis.com/home/item.html?id=f10774f1c63e40168479a1feb6c7ca74](https://www.arcgis.com/home/item.html?id=f10774f1c63e40168479a1feb6c7ca74)
+2. Kreis Grenzen: [https://gdz.bkg.bund.de/index.php/default/verwaltungsgebiete-1-250-000-mit-einwohnerzahlen-ebenen-stand-31-12-vg250-ew-ebenen-31-12.html](https://gdz.bkg.bund.de/index.php/default/verwaltungsgebiete-1-250-000-mit-einwohnerzahlen-ebenen-stand-31-12-vg250-ew-ebenen-31-12.html)
+3. INKAR Socio-economic indicators: [https://www.inkar.de/](https://www.inkar.de/)
+
+
+
+```{r load input data, echo=T}
+kreiseSf <-
+  st_read("data/vg250-ew_12-31.utm32s.shape.ebenen/vg250-ew_ebenen_1231/VG250_KRS.shp", quiet=T)
+
+kreiseSf %>% select(GEN, BEZ, EWZ, geometry)
+
+plot(kreiseSf["geometry"])
+```
+
+The major operation was to take the COVID 19 daily reportings and join them onto the Kreis geometries. 
+The COVID data contains an implicit spatial reference: The name and a ID of the Kreis. With the join of the actual geometries of the Kreis boundaries, the COVID data becomes spatially explicit.
+
+## Geometric operations
+
+During preprocessing of the data we came across the cases of Eisenach and Berlin. Eisenach and its neighboring Wartburgkreis have been merged at first of July 2021. So in the middle of the pandemic with reportings before and reportings after. The administrative boundaries do not reflect this. We will dissolve the two units into one and sum up the COVID reprotings for both Kreise.
+
+## Dissolve Eisenach and Wartburgkreis
+
+```{r, Eisenach Wartburg, echo=T}
+eisenach_wartburg <- kreiseSf %>% filter(GEN %in% c("Eisenach", "Wartburgkreis"))
+plot(kreiseSf$geometry, col="lightgrey", xlim=st_bbox(eisenach_wartburg)[c(1,3)], ylim=st_bbox(eisenach_wartburg)[c(2,4)])
+plot(eisenach_wartburg["GEN"], add=T)
+```
+
+Add a dummy field that contains everywhere distinct values but not for the two districts if interest:
+
+```{r, echo=T}
+idx <- which(kreiseSf$GEN %in% c("Eisenach", "Wartburgkreis"))
+kreiseSf$dummy <- 1:nrow(kreiseSf)
+kreiseSf$dummy[idx] <- 0
+```
+
+Dissolve by dummy field and recalculate attribute fields. As Eisenach comes first we use *last* to get the different identifiers from Wartburgkreis. For the inhabitants (EWZ) we have to sum the two values.
+
+```{r, echo=T}
+#head(kreiseSf)
+kreiseSfDissolved <- kreiseSf %>% group_by(dummy) %>% 
+  summarize(RS_0 = last(RS_0), EWZ = sum(EWZ), 
+            GEN = last(GEN), GF = last(GF), BEZ = last(BEZ),
+            ADE = last (ADE), BSG = last(BSG), ARS = last(ARS),
+            AGS = last(ARS), SDV_ARS = last(SDV_ARS),
+            ARS_0 = last(ARS_0), AGS_0 = last(AGS_0), RS = last(RS))
+```
+
+Check the result
+
+```{r, echo=T}
+kreiseSfDissolved %>% 
+  dplyr::filter(GEN %in% c("Eisenach", "Wartburgkreis"))
+
+plot(kreiseSf$geometry, col="lightgrey", xlim=st_bbox(eisenach_wartburg)[c(1,3)], ylim=st_bbox(eisenach_wartburg)[c(2,4)])
+#plot(kreiseSfDissolved["GEN"], add=T)
+filter(kreiseSfDissolved, GEN %in% c("Eisenach", "Wartburgkreis")) %>% select(GEN) %>% plot(add=T)
+
+```
+
+### Add Berliner Stadtbezirke
+
+Berlin is reported at a finer scale by the RKI data than the administrative units and INKAR. We would like to use the available data and merge our Kreise with Berlins other boundaries.
+
+```{r Berlin case, echo=T}
+berBzkSf <-
+  st_read(
+    "data/berlin_bezirke.gpkg",
+    quiet = T
+  )
+berBzkSf
+plot(berBzkSf["nam"])
+```
+
+
+The Berlin data is even finer than Bezirk level. In the following code-chunk we check the consistency of our two spatial datasets.
+
+
+```{r warning=F, echo=T}
+# Aggregate to Bezirke
+berSkSf <- berBzkSf %>%
+  mutate(IdBerlinSK = paste0(substr(sch, 1, 2), substr(sch, 6, 8))) %>%
+  group_by(IdBerlinSK) %>%
+  summarise() #union boundaries
+
+# Filter non Berlin districts
+kreise <- kreiseSf %>% filter(GEN != "Berlin") %>% select(c(ARS, EWZ))
+# Reproject to consistent coord system
+kreise <- kreise %>% st_transform(st_crs(kreiseSf))
+berSkSf <- berSkSf %>% st_transform(st_crs(kreiseSf))
+# Filter Districts that are close to Berlin
+berProximity <- kreise %>% filter(
+  st_intersects(
+    kreiseSf %>% filter(GEN == "Berlin") %>% summarise() %>% st_buffer(500),
+    geometry,
+    sparse = FALSE,
+    prepared =
+      TRUE
+  )
+)
+
+plot(berSkSf$geom, col = sf.colors(categorical = TRUE, alpha = .5))
+plot(berProximity, add = T)
+
+plot(berSkSf %>% filter(IdBerlinSK == "11005") %>% select(geom))
+plot(kreise$geom,
+     border = "red",
+     add = T,
+     lwd = 1)
+```
+
+We see that the data does not seamingless fit. We prefer to avoid topological errors that could arise from false gaps between the polygons which could later affect the neighboordhod estimation. 
+
+In the following we extent every polygon of Berlin and subtract it with all others including the surrounding polygons of Brandenburg.
+
+We see the boundaries do not consistently fit. In order to be able to do neighborhood analysis that leverages from the actual boundary geometries we need to fix this. A possible processing chain would be to extent (buffer) every Bezirk in Berlin and then subtract it with all others, including the surrounding Kreise of Brandenburg. Due to shortage of time however, we just aggregated the COVID case data from Bezirke to the whole of Berlin.
+
+### Neighborhoods
+
+```{r most neighbors, echo=T}
+
+nb <- poly2nb(kreiseSf) # genearte contigous neighborhood
+cards <- card(nb) # tally amount of nb per region
+maxconts <- which(cards == max(cards)) # get the unit with the most nb
+
+mostconts <- kreiseSf[maxconts,] # extract unit with most nb
+conts <- kreiseSf[nb[[maxconts]],] # extract nb units
+
+# plot all sequentially
+plot(kreiseSf$geometry, xlim = st_bbox(conts)[c(1,3)], ylim = st_bbox(conts)[c(2,4)])
+plot(conts$geometry, col="green", add=T)
+plot(mostconts$geometry, col="red", add=T)
+title(main="Region with largest number of contiguities", cex.main=0.6)
+```
+
+
+The Kreis with the most neighbors is `r mostconts$GEN` with `rmax(cards)` contigous neighbors. More about spatial neighborhoods and how to compute them in [session 3](https://giscience.github.io/global-health-academy/03neighborsAndAutocorrelation.html). 
+
+
+

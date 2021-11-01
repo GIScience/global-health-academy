@@ -53,12 +53,11 @@ Alternatively you can run the acquisition and processing from scratch with the [
 
 ## Sessions
 
-> TODO add all final links
 
 * [01 - Whats special about spatial](https://giscience.github.io/global-health-academy/01spatial.html)
 * [02 - Spatial Visualization or Maps](https://giscience.github.io/global-health-academy/02cartography.html)
-* [03 - Neihbors, spatial weights and spatial autocorrelation](https://giscience.github.io/global-health-academy/03neighborsAndAutocorrelation.html)
-* [04 - Regression analysis using spatial eigenvector mapping](https://giscience.github.io/global-health-academy/04regressionAnalysis.html)
+* [03 - Global and local Autocorrelation](https://giscience.github.io/global-health-academy/03neighborsAndAutocorrelation.html)
+* [04 - Spatial regression](https://giscience.github.io/global-health-academy/04regressionAnalysis.html)
 
 ---
 
