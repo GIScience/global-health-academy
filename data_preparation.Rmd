@@ -1,32 +1,27 @@
 ---
 title: "COVID-19 data preparation"
 author: "Sven Lautenbach"
-date: "7/26/2021"
-output: html_document
-  highlight: pygments
-  theme: sandstone
-editor_options: 
-  chunk_output_type: console
+date: "`r Sys.Date()`"
+output:
+  rmdformats::readthedown:
+    highlight: kate
+    gallery: TRUE
+    lightbox: TRUE
+    thumbnails: TRUE
 ---
-
-In this document we guide you through all steps to get ready for a spatial analysis of COVID 19 incidence rates in Germany. This will include data acquisition, checks and validation, modification and aggregation. The integration of a spatial data set will be particularly relevant here.
-
-## Libraries
-
-In the following libraries are loaded whose functions are mainly important for 4 areas: Tabular data, time series, spatial data models + statistics and visualization.
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-require(tidyverse) # tidy workflows, data wrangling
-require(ggplot2) # viz plots
-require(lubridate) # date time
-require(sf) # spatial data
-require(zoo) # timeseries
-require(spdep) # spatial stats
-require(tmap) # viz maps
-require(tidyquant) # quantitative financal analysis
-require(DataExplorer) # Explorative data analysis,  devtools::install_github("boxuancui/DataExplorer")
-#require(ows4R) # handling OGC webservices
+require(rmdformats)
+require(tidyverse)
+require(ggplot2)
+require(lubridate)
+require(sf)
+require(zoo)
+require(spdep)
+require(tmap)
+require(tidyquant)
+require(readODS)
 ```
 
 # Data acquisition
@@ -47,7 +42,7 @@ if (!dir.exists("data/")) {
 options(timeout = 1080) # avoid download cut-off at 60sec
 
 # check if RKI case data is downloaded/the latest state
-if (as.Date(Sys.time()) - as.Date(file.info("data/RKI_COVID19.csv")$ctime) > 0) {
+if (as.Date(Sys.time()) - as.Date(file.info("data/RKI_COVID19.csv")$ctime) > 0 | is.na(as.Date(Sys.time()) - as.Date(file.info("data/RKI_COVID19.csv")$ctime))) {
   download.file(
     "https://www.arcgis.com/sharing/rest/content/items/f10774f1c63e40168479a1feb6c7ca74/data",
     destfile = "data/RKI_COVID19.csv",
@@ -55,6 +50,15 @@ if (as.Date(Sys.time()) - as.Date(file.info("data/RKI_COVID19.csv")$ctime) > 0) 
   )
 }
 
+```
+
+Meta-data: https://www.arcgis.com/home/item.html?id=f10774f1c63e40168479a1feb6c7ca74
+
+```{r}
+dat <- read.table("data/RKI_COVID19.csv", header=TRUE, sep=",")
+```
+
+```{r, eval=T}
 # check if Kreis boundaries are downloaded, if not, do it
 if (!file.exists("data/vg250-ew_12-31.utm32s.shape.ebenen/vg250-ew_ebenen_1231/VG250_KRS.shp")) {
   download.file(
@@ -65,56 +69,39 @@ if (!file.exists("data/vg250-ew_12-31.utm32s.shape.ebenen/vg250-ew_ebenen_1231/V
   unzip(zipfile = "data/vg250-ew_12-31.utm32s.shape.ebenen.zip",
         exdir = "data/")
 }
-
-# load case data
-dat <- read.table("data/RKI_COVID19.csv", header = TRUE, sep = ",")
-
-# load spatial boundaries for kreise (county or district)
-kreiseSf <-
-  st_read("data/vg250-ew_12-31.utm32s.shape.ebenen/vg250-ew_ebenen_1231/VG250_KRS.shp")
-
 ```
 
-# Explore & understand COVID Case Data
+# Explore COVID Case Data
+
 
 ```{r}
 summary(dat)
 ```
 
-The COVID 19 dataset is `r`ncol(dat)`attributes/columns wide and`r nrow(dat)\` long.
+The COVID 19 dataset is `r ncol(dat)` attributes/columns wide and `r nrow(dat)` long.
 
-Next, we extract the Bundesland to Kreis relationship.
 
-## Unit of analysis
+Extract Bundesland (federal state NUTS1) to Kreis (district, NUTS3) relationship
 
 ```{r}
-
-Landkreis2Land <-
-  select(dat, IdLandkreis, Landkreis, IdBundesland, Bundesland) %>%
-  group_by(IdLandkreis) %>% summarise(
-    Landkreis = first(Landkreis) ,
-    IdBundesland = first(IdBundesland),
-    Bundesland = first(Bundesland)
-  )
-
-Landkreis2Land$IdLandkreis_char <-
-  as.character(Landkreis2Land$IdLandkreis)
-Landkreis2Land$IdBundesland_char <-
-  as.character(Landkreis2Land$IdBundesland)
+Landkreis2Land <- dplyr::select(dat, IdLandkreis, Landkreis, Bundesland) %>%
+  group_by(IdLandkreis) %>% summarise(Landkreis = first(Landkreis) ,Bundesland = first(Bundesland))
+Landkreis2Land$IdLandkreis_char <- as.character(Landkreis2Land$IdLandkreis)
 ```
 
-A total of `r`nrow(Landkreis2Land)\` are in our dataset.
+A total of `r nrow(Landkreis2Land)` are in our dataset.
 
-## Time dimension
+## Temporal dimension
 
 Next, we dig into the timeseries component of the data. Therefore we check and convert the date attribute.
+
 
 ```{r}
 head(dat$Meldedatum)
 tail(dat$Meldedatum)
 ```
 
-The date format is in days only. Are there duplicated dates, maybe due to different times?
+Events reported at resolution of days.
 
 ```{r}
 # get unique dates
@@ -124,7 +111,7 @@ time_diff <- max(ymd_hms(dat$Refdatum)) - min(ymd_hms(dat$Refdatum))
 time_diff
 ```
 
-The dataset includes `r unique_dates` unique dates. Time range across all records is `r time_diff`. Therefore we can conclude there are no duplicates.
+The data set includes `r unique_dates` unique dates. Time range across all records is `r time_diff`. Therefore we can conclude there are no duplicates.
 
 ```{r}
 # convert to date datatype
@@ -138,7 +125,7 @@ Let's have a look at one Landkreis and check how many records exist per day.
 
 ```{r}
 plot(xtabs( ~ Refdatum, data = dat %>% dplyr::filter(Landkreis == "SK Kiel")),
-     xlab = "Time in days (RefDatum",
+     xlab = "Time in days (RefDatum)",
      ylab = "Amount of events")
 ```
 
@@ -160,29 +147,22 @@ dat %>%
 
 Negative case reporting at a later date is possible and needs to be accounted for.
 
-# Aggregation
+# Aggregation by date of infection
 
-## Date of infection
+Aggregate counts over all age groups and gender
 
-Aggregate case and death counts over all age groups and gender
-
-```{r }
-options(dplyr.summarise.inform=F)
+```{r}
 datAgg <- dat %>% group_by(IdLandkreis,  Refdatum) %>%
-  summarize(
-    IdBundesland = first(IdBundesland),
-    sumCount = sum(AnzahlFall, na.rm = TRUE),
-    sumDeath = sum(AnzahlTodesfall, na.rm = TRUE),
-    Landkreis = first(Landkreis),
-    Bundesland = first(Bundesland)
-  )
+  summarize(sumCount = sum(AnzahlFall, na.rm = TRUE), 
+            sumDeath = sum(AnzahlTodesfall, na.rm = TRUE),
+            Landkreis = first(Landkreis) ,Bundesland = first(Bundesland))
 ```
 
 ```{r}
 summary(datAgg)
 ```
 
-The -1 in Min *sumCount* is due to that the case had been reported at the day before.
+The -1 is due to that the case had been reported at the day before.
 
 ```{r}
 complete_ts <- length(unique(datAgg$Refdatum)) * length(unique(datAgg$IdLandkreis))
@@ -196,6 +176,7 @@ plot(xtabs(~ Bundesland, datAgg),
      xlab = "Bundesland",
      ylab = "Amount of events")
 ```
+
 
 ## Complete timeseries
 
@@ -232,17 +213,11 @@ datAggCases_long <-
   dplyr::select(-c(IdLandkreis.y, value)) # remove duplicate attribute and not needed value attr 
 ```
 
-Visualize cases by date and Bundesland
+
 
 ```{r, fig.width=11, fig.height=12}
-ggplot(datAggCases_long, aes(
-  x = Refdatum,
-  y = sumCount,
-  colour = factor(IdLandkreis)
-)) +
-  geom_line(show.legend = FALSE) + facet_wrap(~ Bundesland) +
-  xlab("Time in days") + ylab("Amount of cases") +
-  theme_light()
+ggplot(datAggCases_long, aes(x=Refdatum, y= sumCount, colour=factor(IdLandkreis))) +
+  geom_line(show.legend = FALSE) + facet_wrap(~Bundesland)
 ```
 
 ## Aggregation to 7 day incidence
@@ -296,7 +271,7 @@ datAggCases_long <- datAggCases_long %>% group_by(IdLandkreis) %>%
     TRUE ~ round(sumOverlap1 / sumOverlap2, digits = 4)
   )) %>%
   left_join(datAggCases_long, by = c("IdLandkreis", "Refdatum")) %>%  
-  select(-c(sumOverlap1, sumOverlap2))
+  dplyr::select(-c(sumOverlap1, sumOverlap2))
 ```
 
 Visualization as plots
@@ -308,7 +283,8 @@ ggplot(datAggCases_long,
          y = sumCountRollMean7,
          colour = factor(IdLandkreis)
        )) +
-  geom_line(show.legend = FALSE) + facet_wrap( ~ Bundesland) + theme_light()
+  geom_line(show.legend = FALSE) + facet_wrap( ~ Bundesland) + theme_light() +
+  ylab("7-day rolling mean") + xlab("Reference date")
 
 ggplot(datAggCases_long,
        aes(
@@ -316,7 +292,8 @@ ggplot(datAggCases_long,
          y = sumCountSum7,
          colour = factor(IdLandkreis)
        )) +
-  geom_line(show.legend = FALSE) + facet_wrap( ~ Bundesland)
+  geom_line(show.legend = FALSE) + facet_wrap( ~ Bundesland) +
+  ylab("7-day mean") + xlab("Reference date")
 
 ggplot(datAggCases_long,
        aes(
@@ -324,16 +301,21 @@ ggplot(datAggCases_long,
          y = R0_7,
          colour = factor(IdLandkreis)
        )) +
-  geom_line(show.legend = FALSE) + facet_wrap( ~ Bundesland)
+  geom_line(show.legend = FALSE) + facet_wrap( ~ Bundesland)+
+  ylab("7-day R0") + xlab("Reference date")
 ```
 
-### Link to spatial data
+
+## Link to spatial data
 
 Now we want to link the COVID 19 case data onto the spatial boundaries of each Kreis.
 
-```{r}
-head(kreiseSf)
+```{r, eval = T}
+# load spatial boundaries for kreise (county or district)
+kreiseSf <-
+  st_read("data/vg250-ew_12-31.utm32s.shape.ebenen/vg250-ew_ebenen_1231/VG250_KRS.shp")
 ```
+
 
 The attribute ARS from the spatial dataset can be linked to IdLandkreis from the COVID 19 dataset
 
@@ -344,7 +326,55 @@ head(unique(kreiseSf$ARS))
 head(unique(datAgg$IdLandkreis))
 ```
 
-We see a difference of 10 Kreise which are not present in the spatial dataset. We keep that in mind. First we change the setup of our COVID 19 tibble to a wide format with every row representing one Kreis and every reporting day as attribute/column. Also we need to add a 0 on every Landkreise Id.
+We see a difference of 10 Kreise which are not present in the spatial data set. We keep that in mind. First we change the setup of our COVID 19 tibble to a wide format with every row representing one Kreis and every reporting day as attribute/column. Also we need to add a 0 on every Landkreise Id.
+
+Actually the problems come from two sources:
+
+  - Eisenach and the Wartburgkreis have been merged at first of July 2021. The administrative boundaries do not reflect this. We will dissolve the two units into one. The INKAR official statistics are reported still at the old level. Therefore, we have pre-processed theses data already ahead of time.
+  - Berlin is reported at a finer scale by the RKI data when the administrative units and the INKAR statistics. For shortage of time we are aggregating the different districts for Berlin here.
+  
+Dissolve Eisenach and Wartburgkreis:
+
+```{r}
+filter(kreiseSf, GEN %in% c("Eisenach", "Wartburgkreis")) %>% plot(max.plot = 1)
+```
+
+Add a dummy field that contains everywhere distinct values but not for the two districts if interest:
+
+```{r}
+idx <- which(kreiseSf$GEN %in% c("Eisenach", "Wartburgkreis"))
+kreiseSf$dummy <- 1:nrow(kreiseSf)
+kreiseSf$dummy[idx] <- 0
+```
+
+Dissolve by dummy field and recalculate attribute fields. As Eisenach comes first we use *last* to get the different identifiers from Wartburgkreis. For the inhabitants (EWZ) we have to sum the two values.
+
+```{r}
+#head(kreiseSf)
+kreiseSfDissolved <- kreiseSf %>% group_by(dummy) %>% 
+  summarize(RS_0 = last(RS_0), EWZ = sum(EWZ), 
+            GEN = last(GEN), GF = last(GF), BEZ = last(BEZ),
+            ADE = last (ADE), BSG = last(BSG), ARS = last(ARS),
+            AGS = last(ARS), SDV_ARS = last(SDV_ARS),
+            ARS_0 = last(ARS_0), AGS_0 = last(AGS_0), RS = last(RS))
+```
+
+
+```{r}
+kreiseSfDissolved %>% 
+  dplyr::filter(GEN %in% c("Eisenach", "Wartburgkreis"))
+```
+
+Drop the dummy field
+
+```{r}
+kreiseSfDissolved$dummy <- NULL
+```
+
+```{r}
+kreiseSf <- kreiseSfDissolved
+```
+
 
 ```{r}
 datAgg_wide <-
@@ -368,7 +398,7 @@ unique(names(datAgg_wide)[idx_na[,2]])
 #datAgg_wide <- replace_na(datAgg_wide, replace = 0)
 ```
 
-Only the first couple of days in the dataset are filled with NAs Next we join the case data onto the spatial boundaries.
+Only the first couple of days in the data set are filled with NAs. Next we join the case data onto the spatial boundaries.
 
 ```{r}
 # convert to string format
@@ -388,11 +418,11 @@ kreiseSf %>% filter(is.na(match(
 )) == T)
 ```
 
-We see a Problem with Berlin and Eisenach. Eisenach merged with a neighboring Kreis in July 2021.
+We see a problem with Berlin.
 
 ```{r}
-Landkreis2Land %>% filter(str_detect(Landkreis, "Berlin"))
-kreiseSf %>% filter(str_detect(GEN, "Berlin"))
+Landkreis2Land %>% dplyr::filter(str_detect(Landkreis, "Berlin"))
+kreiseSf %>% dplyr::filter(str_detect(GEN, "Berlin"))
 ```
 
 Several districts for Berlin which are not in the geodata - we need to aggregate the data.
@@ -432,6 +462,8 @@ Add Berlin to the Landkreis- Bundesland relationship table as well.
 Landkreis2Land[nrow(Landkreis2Land)+1, ] <- list(IdLandkreis = 11000, Landkreis = "Berlin", Bundesland = "Berlin", IdLandkreis_char = "11000")
 ```
 
+Finally, we join the covid-19 case data to the pre-processed spatial data set and ensure proper and understandable field names.
+
 ```{r}
 kreiseWithCovid <- left_join(kreiseSf, datAgg_wide, by= c("ARS" = "IdLandkreis_char"))
 
@@ -445,91 +477,76 @@ names(kreiseWithCovid)[incidenceFieldsIdxKreise] <-
        names(kreiseWithCovid)[incidenceFieldsIdxKreise])
 ```
 
-### Test maps
+
+## Test maps
 
 Districts without inhabitants
 
 ```{r}
 #idx0ew <- which(kreiseWithCovid$EWZ == 0)
-kreiseWithCovid %>% filter( EWZ == 0) %>% select(ADE:WSK)
+kreiseWithCovid %>% filter( EWZ == 0) %>% dplyr::select(ADE:AGS_0)
 
 kreiseWithCovid$noEWZ <- ifelse(kreiseWithCovid$EWZ == 0, 1, 0)
 ```
 
 ```{r}
-kreiseWithCovid %>% filter(EWZ == 0) %>%
-  tm_shape() + tm_polygons(col = "noEWZ", n = 2) +
+kreiseWithCovid %>% dplyr::filter( EWZ == 0) %>%
+tm_shape() + tm_polygons(col="noEWZ", n=2) +
   tm_layout(legend.outside = TRUE)
 ```
 
-These are all GF==2 areas, i.e. water bodies and other uninhabited regions.
+These are all GF==2 areas, i.e. water bodies and other uninhabited regions
 
-Drop those
-
-```{r}
-kreiseWithCovidCleaned <- filter(kreiseWithCovid, GF != 2)
-```
-
-Lets do a map of the incidence rate
+Drop those:
 
 ```{r}
-breaks = c(0, 5, 25, 50, 100, 250, 500, 1000)
-kreiseWithCovidCleaned %>% mutate(incidence_rate = cases7days_2021_09_27 / EWZ * 10 ^
-                                    5) %>%
-  tm_shape() + tm_polygons(col = "incidence_rate", breaks = breaks) +
-  tm_layout(legend.outside = TRUE)
+kreiseWithCovidCleaned <- dplyr::filter(kreiseWithCovid, GF !=2)
 ```
 
-We see one unit with a missing incidence rate. This is the boundary of the former Kreis Eisenach. Since July 2021 it is merged with the surrounding Kreis.
+Lets create a map of the incidence rate for a specific week
 
-## Aggregate by Meldedatum
+```{r}
+breaks = c(0, 5,25,50, 100,250,500, 1000)
+kreiseWithCovidCleaned %>% mutate(incidence_rate = cases7days_2021_09_27 / EWZ * 10^5 ) %>%
+tm_shape() + tm_polygons(col="incidence_rate", breaks= breaks, title = "Incidence rate") +
+  tm_layout(legend.outside = TRUE, main.title = "Week of 27th September 2021")
+```
 
-Actually these seem to be the numbers in the official maps provided by the RKI. Lets redo the steps but for the Meldedatum attribute.
+
+# Aggregate by Meldedatum
+
+Actually these seem to be the numbers in the official maps provided by the RKI.  Lets redo the steps but for the Meldedatum attribute.
+
 
 ```{r}
 datAggMelde <- dat %>% group_by(IdLandkreis,  Meldedatum) %>%
-  summarize(
-    sumCount = sum(AnzahlFall, na.rm = TRUE),
-    sumDeath = sum(AnzahlTodesfall, na.rm = TRUE),
-    Landkreis = first(Landkreis) ,
-    Bundesland = first(Bundesland)
-  )
+  summarize(sumCount = sum(AnzahlFall, na.rm = TRUE), 
+            sumDeath = sum(AnzahlTodesfall, na.rm = TRUE),
+            Landkreis = first(Landkreis) ,Bundesland = first(Bundesland))
 ```
 
 ```{r}
-datAggCasesMelde_wideByDistrict <-
-  arrange(datAggMelde, Meldedatum, .by_group = TRUE) %>%
-  pivot_wider(names_from = IdLandkreis,
-              values_from = sumCount,
-              id_cols = Meldedatum)
+datAggCasesMelde_wideByDistrict <- arrange(datAggMelde, Meldedatum, .by_group = TRUE) %>% 
+  pivot_wider( names_from = IdLandkreis, values_from = sumCount, id_cols = Meldedatum)
 ```
 
+
 ```{r}
-datAggCasesMelde_long <-
-  pivot_longer(datAggCasesMelde_wideByDistrict,
-               cols = -Meldedatum,
-               names_to = "IdLandkreis")
+datAggCasesMelde_long <- pivot_longer(datAggCasesMelde_wideByDistrict, cols = -Meldedatum, names_to = "IdLandkreis")
 ```
+
 
 Replace NA with zeros
 
 ```{r}
-datAggCasesMelde_long$sumCount <-
-  replace_na(datAggCasesMelde_long$value, replace = 0)
-datAggCasesMelde_long <-
-  left_join(datAggCasesMelde_long,
-            Landkreis2Land,
-            by = c("IdLandkreis" = "IdLandkreis_char"))
+datAggCasesMelde_long$sumCount <- replace_na(datAggCasesMelde_long$value, replace = 0)
+datAggCasesMelde_long <- left_join(datAggCasesMelde_long, Landkreis2Land, by= c("IdLandkreis" = "IdLandkreis_char"))
 ```
 
+
 ```{r, fig.width=11, fig.height=12}
-ggplot(datAggCasesMelde_long,
-       aes(
-         x = Meldedatum,
-         y = sumCount,
-         colour = factor(IdLandkreis)
-       )) +
-  geom_line(show.legend = FALSE) + facet_wrap( ~ Bundesland)
+ggplot(datAggCasesMelde_long, aes(x=Meldedatum, y= sumCount, colour=factor(IdLandkreis))) +
+  geom_line(show.legend = FALSE) + facet_wrap(~Bundesland)
 ```
 
 ## 7-day rolling mean and 7-day sum
@@ -581,43 +598,36 @@ datAggCasesMelde_long <-
     TRUE ~ round(sumOverlap1 / sumOverlap2, digits = 4)
   )) %>%
   left_join(datAggCasesMelde_long, by = c("IdLandkreis", "Meldedatum")) %>% 
-  select(-c(sumOverlap1, sumOverlap2))
+  dplyr::select(-c(sumOverlap1, sumOverlap2))
 ```
 
-### Join spatial data
+
+## Join with spatial data
 
 Bring to wide format
 
 ```{r}
-datAggMelde_wide <-
-  arrange(datAggCasesMelde_long, Meldedatum, .by_group = TRUE) %>%
-  pivot_wider(
-    id_cols = IdLandkreis,
-    names_from = Meldedatum,
-    values_from = sumCountSum7,
-    names_prefix = "cases7days_"
-  )
+datAggMelde_wide <- arrange(datAggCasesMelde_long, Meldedatum, .by_group = TRUE) %>%  
+  pivot_wider( id_cols = IdLandkreis, names_from = Meldedatum, 
+               values_from = sumCountSum7, names_prefix = "cases7days_")
 ```
 
 ```{r}
-# convert to string format
-datAggMelde_wide$IdLandkreis_char <-
-  as.character(datAggMelde_wide$IdLandkreis)
-# add 0 to every Landkreise Id
-datAggMelde_wide$IdLandkreis_char <-
-  str_pad(
-    datAggMelde_wide$IdLandkreis_char,
-    width = 5,
-    side = "left",
-    pad = "0"
-  )
+datAggMelde_wide$IdLandkreis_char <- as.character(datAggMelde_wide$IdLandkreis)
+datAggMelde_wide$IdLandkreis_char <- str_pad(datAggMelde_wide$IdLandkreis_char, width=5, side="left", pad="0")
 
-kreiseSf %>% filter(is.na(match(
-  kreiseSf$ARS, datAgg_wide$IdLandkreis_char
-)) == T)
+
+idx <- which(is.na(match(kreiseSf$ARS, datAggMelde_wide$IdLandkreis_char)))
+kreiseSf[idx,]
 ```
 
-We see a Problem with Berlin and Eisenach. Eisenach merged with a neighboring Kreis in July 2021.
+```{r}
+datAggMelde_wide$IdLandkreis_char <- as.character(datAggMelde_wide$IdLandkreis)
+datAggMelde_wide$IdLandkreis_char <- str_pad(datAggMelde_wide$IdLandkreis_char, width=5, side="left", pad="0")
+
+```
+
+We see a problem with Berlin.
 
 Several districts for Berlin which are not in the geodata - need to aggregate the data.
 
@@ -650,6 +660,7 @@ datAggMelde_wide[n + 1, ncol(datAggMelde_wide)] <- "11000"
 datAggMelde_wide <- datAggMelde_wide[-idx_berlinInRKI, ]
 ```
 
+
 ```{r}
 kreiseWithCovidMelde <-
   left_join(kreiseSf, datAggMelde_wide, by = c("ARS" = "IdLandkreis_char"))
@@ -666,32 +677,24 @@ names(kreiseWithCovidMelde)[incidenceFieldsIdxKreise] <-
 Remove waterbodies again.
 
 ```{r}
-kreiseWithCovidMeldeCleaned <- filter(kreiseWithCovidMelde, GF != 2)
+kreiseWithCovidMeldeCleaned <- dplyr::filter(kreiseWithCovidMelde, GF != 2)
 ```
 
 ```{r}
-breaks = c(0, 5, 25, 50, 100, 250, 500, 1000)
-kreiseWithCovidMeldeCleaned %>% mutate(incidence_rate = cases7days_2021_09_27 / EWZ * 10 ^
-                                         5) %>%
-  tm_shape() + tm_polygons(
-    col = "incidence_rate",
-    breaks = breaks,
-    legend.hist = TRUE,
-    palette = "-plasma",
-    legend.reverse = TRUE
-  ) +
-  tm_layout(
-    legend.outside = TRUE,
-    bg.color = "darkgrey",
-    outer.bg.color = "lightgrey",
-    legend.outside.size = 0.5,
-    attr.outside = TRUE
-  ) + tm_scale_bar()
+breaks = c(0, 5,25,50, 100, 250, 500, 1000)
+kreiseWithCovidMeldeCleaned %>% 
+  mutate(incidence_rate = cases7days_2021_09_27 / EWZ * 10^5 ) %>%
+  tm_shape() + 
+  tm_polygons(col="incidence_rate", breaks= breaks,  legend.hist = TRUE, 
+              palette= "-plasma", legend.reverse = TRUE, title = "Incidence rate") +
+  tm_layout(legend.outside = TRUE, bg.color = "darkgrey", outer.bg.color = "lightgrey",
+            legend.outside.size = 0.5, attr.outside = TRUE, 
+            main.title = "Week of 27th September 2021") + tm_scale_bar()
 ```
 
-## Aggregate for each calender week
+### Aggregate for each calender week
 
-```{r}
+```{r, warning = FALSE}
 datAggCasesMeldeWeekly_long <-
   datAggCasesMelde_long %>% group_by(IdLandkreis) %>% tq_transmute(
     select = c("sumCount"),
@@ -783,8 +786,8 @@ kreiseWithCovidMeldeWeeklyCleaned <-
 
 ```{r}
 breaks = c(0, 5, 25, 50, 100, 250, 500, 1000)
-kreiseWithCovidMeldeWeeklyCleaned %>% mutate(incidence_rate = casesWeek_2021_09_26 / EWZ * 10 ^
-                                               5) %>%
+kreiseWithCovidMeldeWeeklyCleaned %>% 
+  mutate(incidence_rate = casesWeek_2021_09_26 / EWZ * 10 ^5) %>%
   tm_shape() + tm_polygons(
     col = "incidence_rate",
     breaks = breaks,
@@ -797,215 +800,111 @@ kreiseWithCovidMeldeWeeklyCleaned %>% mutate(incidence_rate = casesWeek_2021_09_
     bg.color = "darkgrey",
     outer.bg.color = "lightgrey",
     legend.outside.size = 0.5,
-    attr.outside = TRUE
+    attr.outside = TRUE,
+    main.title = "Week of 27th September 2021"
   ) + tm_scale_bar()
 ```
 
-```{r}
-save(kreiseWithCovidMeldeCleaned, file = "data/kreiseWithCovidByMeldedatum.Rdata")
-save(kreiseWithCovidCleaned, file = "data/kreiseWithCovidByRefdatum.Rdata")
-save(kreiseWithCovidMeldeWeeklyCleaned, file = "data/kreiseWithCovidMeldedatumWeekly.Rdata")
-```
+# Aggregate over whole period
 
 ```{r}
-st_write(
-  kreiseWithCovidMeldeWeeklyCleaned,
-  dsn = "data/covidKreise.gpkg",
-  layer = "kreiseWithCovidMeldeWeeklyCleaned",
-  delete_layer = TRUE
-)
+idxCaseFieldPosition <- grep(pattern = "casesWeek_", x = names(kreiseWithCovidMeldeWeeklyCleaned))
+namesCaseFieldPosition <-  names(kreiseWithCovidMeldeWeeklyCleaned)[idxCaseFieldPosition]
 ```
 
-
-# Appendix
-
-## Berlin Bezirke
-
-### Spatial reference
-
-Download boudnary data for the Berlin Bezirke
 
 ```{r}
-# Berlin city districts
-
-# interact with OWS API to list available data and put together the correct request
-#wfs_berlin <- "https://fbinter.stadt-berlin.de/fb/wfs/data/senstadt/s_wfs_alkis_ortsteile"
-#berlin_client <- WFSClient$new(wfs_berlin, serviceVersion = "2.0.0")
-#berlin_client$getFeatureTypes(pretty = TRUE)
-
-#url <- httr::parse_url(wfs_berlin)
-
-#url$query <- list(service = "wfs",
-#                  version = "2.0.0", # optional
-#                  request = "GetFeature",
-#                  typenames = "fis:s_wfs_alkis_ortsteile",
-#                  srsName = "EPSG:25833"
-#                  )
-#request <-httr::build_url(url)
-#berSkSf <- st_read(request)
-
-berBzkSf <-
-  st_read(
-    "https://fbinter.stadt-berlin.de/fb/wfs/data/senstadt/s_wfs_alkis_ortsteile?service=wfs&version=2.0.0&request=GetFeature&typenames=fis%3As_wfs_alkis_ortsteile&srsName=EPSG%3A25833",
-    quiet = T
-  )
+kreiseWithCovidMeldeWeeklyCleaned$sumCasesTotal <-
+  apply(st_drop_geometry(kreiseWithCovidMeldeWeeklyCleaned[, idxCaseFieldPosition]), 
+        MARGIN= 1, 
+      FUN = function(x) sum(x, na.rm = TRUE))
 ```
 
 
-In the following code-chunk we check the consistency of our spatial dataset from 
 
 
-```{r warning=F}
-# Aggregate to Bezirke
-berSkSf <- berBzkSf %>%
-  mutate(IdBerlinSK = paste0(substr(sch, 1, 2), substr(sch, 6, 8))) %>%
-  group_by(IdBerlinSK) %>%
-  summarise() #union boundaries
-
-# Filter non Berlin districts
-kreise <- kreiseSf %>% filter(GEN != "Berlin") %>% select(c(ARS, EWZ))
-# Reproject to consistent coord system
-kreise <- kreise %>% st_transform(st_crs(kreiseSf))
-berSkSf <- berSkSf %>% st_transform(st_crs(kreiseSf))
-# Filter Districts that are close to Berlin
-berProximity <- kreise %>% filter(
-  st_intersects(
-    kreiseSf %>% filter(GEN == "Berlin") %>% summarise() %>% st_buffer(500),
-    geometry,
-    sparse = FALSE,
-    prepared =
-      TRUE
-  )
-)
-
-plot(berSkSf$geometry, col = sf.colors(categorical = TRUE, alpha = .5))
-#plot(berSkSf$geometry)
-plot(berProximity, add = T)
-
-plot(berSkSf %>% filter(IdBerlinSK == "11005") %>% select(geometry))
-plot(kreise$geom,
-     border = "red",
-     add = T,
-     lwd = 1)
+```{r}
+kreiseWithCovidMeldeWeeklyCleaned %>% 
+  mutate(incidence_rate = sumCasesTotal / EWZ * 10^5 ) %>%
+  tm_shape() + 
+  tm_polygons(col="incidence_rate",   legend.hist = TRUE, palette= "-plasma",
+                         legend.reverse = TRUE, title = "Incidence rate for total period") +
+  tm_layout(legend.outside = TRUE, bg.color = "darkgrey", outer.bg.color = "lightgrey",
+            legend.outside.size = 0.5, attr.outside = TRUE) + tm_scale_bar()
 ```
 
-We see that the data does not seamingless fit. We prefer to avoid topological errors that could arise from false gaps between the polygons which could later affect the neighboordhod estimation. In the following we extent every polygon of Berlin and subtract it with all others including the surrounding polygons of Brandenburg.
+```{r}
+kreiseWithCovidMeldeWeeklyCleaned$incidenceTotal <-  kreiseWithCovidMeldeWeeklyCleaned$sumCasesTotal / kreiseWithCovidMeldeWeeklyCleaned$EWZ * 10^5
+```
 
-```{r warning = F}
-# loop over evey Bezirk of Berlin
-for (i in 1:nrow(berSkSf)) {
-  
-  # extend/buffer with 300m 
-  berBuff <- berSkSf[i,] %>% st_buffer(300)
-  
-  # Subtract/difference all other Berlin Bezirke
-  berBuffDiff <- berBuff %>% st_difference(st_union(berSkSf[-i,]))
-  
-  # Subtract/difference all other Kreise/Districts outside of Berlin
-  berBuffDiff <- berBuffDiff %>% st_difference(st_union(berProximity))
-  
-  # check for first iteration
-  if (i==1){
-    # store result in different variable
-    berSkSf_fit <- berBuffDiff
-  } else {
-    # append variable by the new result
-    berSkSf_fit <- rbind(berSkSf_fit, berBuffDiff)
-  }
+```{r}
+kreiseWithCovidMeldeWeeklyCleaned$casesWeek_2021_10_31
+```
+
+
+# Add covariates
+
+Data needs to be downloaded from:
+
+The data has been extracted from: https://www.inkar.de/
+Meta-data is available at this page as well - unfortunately in German only. Field names are in German as well
+
+```{r}
+load("data/inkarKreisstatistik_preprocessed.Rdata", verbose=TRUE)
+```
+
+Join with the spatial data aggregated at weekly basis:
+
+```{r}
+kreiseWithCovidMeldeWeeklyCleanedPredictorsAdded <- left_join(kreiseWithCovidMeldeWeeklyCleaned, predictors2, by= c("RS_0" = "RS_0"))
+```
+
+## Serialize the data to disk
+
+```{r}
+save(kreiseWithCovidMeldeCleaned, file="data/kreiseWithCovidByMeldedatum.Rdata")
+save(kreiseWithCovidCleaned, file="data/kreiseWithCovidByRefdatum.Rdata")
+save(kreiseWithCovidMeldeWeeklyCleaned, file="data/kreiseWithCovidMeldedatumWeekly.Rdata")
+save(kreiseWithCovidMeldeWeeklyCleanedPredictorsAdded, file="data/kreiseWithCovidMeldedatumWeeklyPredictors.Rdata")
+```
+
+If use in a geographic information system such as QGIS is desired data should be exported in a different format. Here we use the geopackage format.
+
+```{r}
+st_write(kreiseWithCovidMeldeWeeklyCleanedPredictorsAdded, 
+         dsn = "../../data/covidKreise.gpkg", 
+         layer = "kreiseWithCovidMeldeWeeklyCleaned", 
+         delete_layer = TRUE)
+```
+
+
+## Aggregate per Week
+
+```{r}
+idxCaseFieldPosition <- grep(pattern = "casesWeek_", x = names(kreiseWithCovidMeldeWeeklyCleaned))
+namesCaseFieldPosition <-  names(kreiseWithCovidMeldeWeeklyCleaned)[idxCaseFieldPosition]
+# strip prefix
+dateStrVec <- gsub(pattern = "casesWeek_", replacement = "", x = namesCaseFieldPosition)
+```
+
+Get the sum across all distrcits for each week
+
+```{r}
+totalPop <- sum(kreiseWithCovidMeldeWeeklyCleaned$EWZ)
+```
+
+```{r}
+nationalAggCases <- data.frame(week = ymd(dateStrVec), cases = NA)
+for(i in 1:length(dateStrVec))
+{
+  fieldName <- paste0("casesWeek_", dateStrVec[i])
+  nationalAggCases$cases[i] <- sum(st_drop_geometry(kreiseWithCovidMeldeWeeklyCleaned)[, fieldName]) 
 }
-# homogenize attributes
-
-
-
-# Popualtion per Berlin bezirk from https://de.wikipedia.org/wiki/Verwaltungsgliederung_Berlins
-berlin_EWZ <- data.frame(
-  ARS = c(
-    11001,
-    11002,
-    11003,
-    11004,
-    11005,
-    11006,
-    11007,
-    11008,
-    11009,
-    11010,
-    11011,
-    11012
-  ),
-  EWZ = c(
-    383360,
-    289787,
-    410716,
-    341392,
-    245527,
-    308840,
-    349539,
-    327945,
-    276165,
-    273731,
-    296837,
-    266123
-  )
-)
-# Alter names in the Blerin Bezirke dataset to be consistent
-names(berSkSf_fit) <- c("ARS", "geometry")
-# Add population data to the Bezirke (just in ascending order, not a join)
-berSkSf_fit$EWZ <- berlin_EWZ$EWZ
-# Bind the rows of the Bezirke and Kreise in one final dataset
-kreise <- rbind(berSkSf_fit, kreise)
-# check the borders again
-plot(berSkSf_fit %>% filter(ARS == "11005") %>% select(geometry), lwd=1)
-plot(kreise$geometry,
-     lwd = .5,
-     border = "red",
-     add = T
-     )
-# map on pop distribution
-plot(kreise["EWZ"], lwd=.01)
+nationalAggCases$incidence <- nationalAggCases$cases / totalPop * 10^5
 ```
 
-
-### Socioeconomic data for Berlin Bezirke
 
 ```{r}
-# get employment data
-if (!file.exists("data/erwerbstaetigkeit-regionaldaten-2019-erwerbstaetige.xlsx")) {
-  download.file(
-    "https://download.statistik-berlin-brandenburg.de/15c8291864bb541b/db8a520a733e/erwerbstaetigkeit-regionaldaten-2019-erwerbstaetige.xlsx",
-    destfile = "data/erwerbstaetigkeit-regionaldaten-2019-erwerbstaetige.xlsx",
-    mode = 'wb'
-  )
-}
-# load in employment data. The format is a bit ugly. the header spans over 4 rows and the 6th column is empty.
-berlin_work <- readxl::read_xlsx("data/erwerbstaetigkeit-regionaldaten-2019-erwerbstaetige.xlsx", skip=4, n_max = 10)
-# rm column 6, it is empty
-berlin_work <- berlin_work[,-6]
-# add correct collumn names
-names(berlin_work) <- c("Bezirk", "Pop", "Employmed", "Unemployed", "Non-employed", "Employmentrate")
-
-# download demographic data
-if (!file.exists("data/EWR_Ortsteile_2020-12-31.csv")) {
-  download.file(
-    "https://download.statistik-berlin-brandenburg.de/01e6d9b311a4b497/0836b0ac615a/EWR_Ortsteile_2020-12-31.csv",
-    destfile = "data/EWR_Ortsteile_2020-12-31.csv",
-    mode = 'wb'
-  )
-}
-
-berlin_demo <-
-  read.table(
-    "data/EWR_Ortsteile_2020-12-31.csv",
-    sep = ";",
-    header = T,
-    fileEncoding = "ISO 8859-14",
-    #encoding = "ISO 8859-14"
-    #encoding = "UTF-8"
-  ) %>% tibble()
-
-berlin_demo <- berlin_demo %>%
-  group_by(Bez.Name, Geschl, Staatsangeh, Altersgr) %>%
-  summarise(Bezirk = first(Bezirk),
-            Häufigkeit = sum(Häufigkeit))
-
+save(nationalAggCases, file = "data/nationalAggCases.Rdata")
 ```
+
