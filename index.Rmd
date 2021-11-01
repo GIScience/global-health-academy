@@ -56,8 +56,23 @@ Alternatively you can run the acquisition and processing from scratch with the [
 
 * [01 - Whats special about spatial](https://giscience.github.io/global-health-academy/01spatial.html)
 * [02 - Spatial Visualization or Maps](https://giscience.github.io/global-health-academy/02cartography.html)
-* [03 - Global and local Autocorrelation](https://giscience.github.io/global-health-academy/03neighborsAndAutocorrelation.html)
+* [03 - Global and local autocorrelation](https://giscience.github.io/global-health-academy/03neighborsAndAutocorrelation.html)
 * [04 - Spatial regression](https://giscience.github.io/global-health-academy/04regressionAnalysis.html)
+
+## Setup
+
+* get R: [https://dh-r.lincolnmullen.com/installing-r-and-packages.html](https://dh-r.lincolnmullen.com/installing-r-and-packages.html)
+
+* get Rstudio: [https://www.rstudio.com/products/rstudio/download/](https://www.rstudio.com/products/rstudio/download/)
+
+* install the following packages within R
+
+```{r, echo=TRUE, eval=F}
+pkgs <- c("rmdformats","tidyverse","ggplot2","lubridate","sf","zoo","spdep","tmap","tidyquant","readODS","knitr","animation","cartogram","kableExtra","pals","sf","ggpubr","GGally","MASS")
+
+install.packages(pkgs)
+```
+
 
 ---
 

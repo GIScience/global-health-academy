@@ -16,6 +16,7 @@ require(animation)
 require(sf)
 require(tmap)
 require(tidyverse)
+library(dplyr)
 library(cartogram)
 library(kableExtra)
 library(spdep)
@@ -78,7 +79,7 @@ The data origin is:
 kreiseSf <-
   st_read("data/vg250-ew_12-31.utm32s.shape.ebenen/vg250-ew_ebenen_1231/VG250_KRS.shp", quiet=T)
 
-kreiseSf %>% select(GEN, BEZ, EWZ, geometry)
+kreiseSf %>% dplyr::select(GEN, BEZ, EWZ, geometry)
 
 plot(kreiseSf["geometry"])
 ```
@@ -93,7 +94,7 @@ During preprocessing of the data we came across the cases of Eisenach and Berlin
 ## Dissolve Eisenach and Wartburgkreis
 
 ```{r, Eisenach Wartburg, echo=T}
-eisenach_wartburg <- kreiseSf %>% filter(GEN %in% c("Eisenach", "Wartburgkreis"))
+eisenach_wartburg <- kreiseSf %>% dplyr::filter(GEN %in% c("Eisenach", "Wartburgkreis"))
 plot(kreiseSf$geometry, col="lightgrey", xlim=st_bbox(eisenach_wartburg)[c(1,3)], ylim=st_bbox(eisenach_wartburg)[c(2,4)])
 plot(eisenach_wartburg["GEN"], add=T)
 ```
@@ -126,7 +127,7 @@ kreiseSfDissolved %>%
 
 plot(kreiseSf$geometry, col="lightgrey", xlim=st_bbox(eisenach_wartburg)[c(1,3)], ylim=st_bbox(eisenach_wartburg)[c(2,4)])
 #plot(kreiseSfDissolved["GEN"], add=T)
-filter(kreiseSfDissolved, GEN %in% c("Eisenach", "Wartburgkreis")) %>% select(GEN) %>% plot(add=T)
+filter(kreiseSfDissolved, GEN %in% c("Eisenach", "Wartburgkreis")) %>% dplyr::select(GEN) %>% plot(add=T)
 
 ```
 
@@ -156,7 +157,7 @@ berSkSf <- berBzkSf %>%
   summarise() #union boundaries
 
 # Filter non Berlin districts
-kreise <- kreiseSf %>% filter(GEN != "Berlin") %>% select(c(ARS, EWZ))
+kreise <- kreiseSf %>% filter(GEN != "Berlin") %>% dplyr::select(c(ARS, EWZ))
 # Reproject to consistent coord system
 kreise <- kreise %>% st_transform(st_crs(kreiseSf))
 berSkSf <- berSkSf %>% st_transform(st_crs(kreiseSf))
@@ -174,7 +175,7 @@ berProximity <- kreise %>% filter(
 plot(berSkSf$geom, col = sf.colors(categorical = TRUE, alpha = .5))
 plot(berProximity, add = T)
 
-plot(berSkSf %>% filter(IdBerlinSK == "11005") %>% select(geom))
+plot(berSkSf %>% filter(IdBerlinSK == "11005") %>% dplyr::select(geom))
 plot(kreise$geom,
      border = "red",
      add = T,

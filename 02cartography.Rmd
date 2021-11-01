@@ -20,8 +20,10 @@ require(animation)
 require(sf)
 require(tmap)
 require(tidyverse)
+library(dplyr)
 library(cartogram)
 library(kableExtra)
+library(pals)
 
 ## Global options
 options(max.print="75")
@@ -311,7 +313,7 @@ create_bivar_map(
   y = "Breitbandversorgung",
   x_label = "Current incidence",
   y_label = "Broadband supply",
-  col.rmp = pals::stevens.pinkgreen(9),
+  col.rmp = stevens.pinkgreen(9),
   ival.method = "quantile",
   fntsize = .75,
   vp = legend.viewport
