@@ -36,8 +36,8 @@ opts_knit$set(width=75)
 
 
 ```{r}
-load("../../data/kreiseWithCovidMeldedatumWeekly.Rdata")
-load("../../data/nationalAggCases.Rdata")
+load("data/kreiseWithCovidMeldedatumWeekly.Rdata")
+load("data/nationalAggCases.Rdata")
 ```
 
 Get the field names for the dates for which we have data - these will be used in the loops. Since all fields have the same prefix we can easily get their indices by a regular expression (with *grep*). These indices are then used to subset the field names vector of the data frame. For plot labeling we drop the prefix and store the names in a different vector of same size.
@@ -138,7 +138,7 @@ is.symmetric.nb(k10nb)
 Minimum spanning tree: connects all nodes together while minimizing total edge length
 Relative neighborhood graph: all nodes connected for those the lens formed by the radii of their circles contains no other points
 Gabriel graph: all nodes connected if were is no other node inside a circle with their distance
-Delaunay triangulation:: all nodes connected for which the circumcise around ABC contains no other nodes
+Delaunay triangulation: all nodes connected for which the circumcise around ABC contains no other nodes
 
 The Gabriel graph is a subgraph of the delaunay triangulation and has the relative neighbor graph as a sub-graph. 
 
@@ -208,7 +208,7 @@ dlist <- nbdists(unionedNb, st_coordinates(centroidsKreise))
 dlist <- lapply(dlist, function(x) 1/x)
 unionedListw_d <- nb2listw(unionedNb, glist=dlist, style = "W")
 
-save(unionedListw_d, file="../../data/unionedListw_d_berlinNotSubdivided.Rdata")
+save(unionedListw_d, file="data/unionedListw_d_berlinNotSubdivided.Rdata")
 
 hist(unlist(unionedListw_d$weights), las=1, xlab="weights", main="unioned contiguity and 50km distance nb, idw, W")
 ```

@@ -37,8 +37,8 @@ set.seed(42)
 ```
 
 ```{r}
-load("../../data/unionedListw_d_berlinNotSubdivided.Rdata")
-load("../../data/kreiseWithCovidMeldedatumWeeklyPredictors.Rdata")
+load("data/unionedListw_d_berlinNotSubdivided.Rdata")
+load("data/kreiseWithCovidMeldedatumWeeklyPredictors.Rdata")
 ```
 
 # Explorative analysis
