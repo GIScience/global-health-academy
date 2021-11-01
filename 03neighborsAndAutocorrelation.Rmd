@@ -1,0 +1,472 @@
+---
+title: "Analysis of global and local spatial autocorrelation based on the empirical Bayes index modification of Moran's I"
+author: "Sven Lautenbach"
+date: "`r Sys.Date()`"
+output:
+  rmdformats::readthedown:
+    highlight: kate
+    gallery: TRUE
+    lightbox: TRUE
+    thumbnails: TRUE
+---
+
+
+```{r setup, include=FALSE}
+library(knitr)
+library(rmdformats)
+require(sf)
+require(spdep)
+require(ggpubr)
+require(ggplot2)
+require(tidyverse)
+require(tmap)
+require(animation)
+
+## Global options
+options(max.print="75")
+opts_chunk$set(echo=TRUE,
+	             cache=FALSE,
+               prompt=FALSE,
+               tidy=TRUE,
+               comment=NA,
+               message=FALSE,
+               warning=FALSE)
+opts_knit$set(width=75)
+```
+
+
+```{r}
+load("../../data/kreiseWithCovidMeldedatumWeekly.Rdata")
+load("../../data/nationalAggCases.Rdata")
+```
+
+Get the field names for the dates for which we have data - these will be used in the loops. Since all fields have the same prefix we can easily get their indices by a regular expression (with *grep*). These indices are then used to subset the field names vector of the data frame. For plot labeling we drop the prefix and store the names in a different vector of same size.
+
+```{r}
+idxCaseFieldPosition <- grep(pattern = "casesWeek_", x = names(kreiseWithCovidMeldeWeeklyCleaned))
+namesCaseFieldPosition <-  names(kreiseWithCovidMeldeWeeklyCleaned)[idxCaseFieldPosition]
+# strip prefix
+dateStrVec <- gsub(pattern = "casesWeek_", replacement = "", x = namesCaseFieldPosition)
+```
+
+## Defining neighborhoods and the spatial weight Matrix W
+
+Spatial autocorrelation analysis requires a neighborhood definition. A neighborhood (or contiguity) matrix $C$ represents if pairs of spatial features are to be considered as neighbors or not. A spatial weight $W$ matrix is a weighted form of such a neighborhood matrix. $W$ represents the possible spatial interactions for the selected neighborhood and weighting approach.
+
+In contrast to temporal autocorrelation there neighbors are defined based on the lag between observation the situation is more complex for spatial data. A couple of basic approaches are available in *{spdep}* to define neighbors:
+
+  - polygons that share an edge or a node
+  - points (centroids in our case) in a specific distance band
+  - k-nearest neighbors (distance based on centroids for polygons)
+  - geometric approaches such as the Delany triangulation, the gabriel graph or the sphere of interest can be used
+  
+The different approaches can also be combined by set operations such as union or difference.
+
+It is also possible to include higher order neighbors, i.e. neighbors of neighbors.
+
+In our case we could as well use more advanced approaches, e.g. based on driving time between the different population centers in the districts or based on mobility data that have been derived based on mobile phone data. We will stick to the basic approaches here due to time constraints.
+
+To assess the usefulness of a neighborhood for the question at hand one might consider the following aspects in addition to a visual inspection:
+
+  - are there island (observations without neighbors)? Is it useful to consider these as real island or are there connections in the real world? An island might be connected by ferry, bridge or airplane to other spatial units so it might be good to incorporate that link manually. Island cause problems for the upcoming analysis steps and their interpretation so it is good to ensure that they are required.
+  - is the neighborhood definition symmetric? k-nearest neighborhood definitions frequently lead to asymmetric neighborhoodd definitions that are problematic for analysis and interpretation. It is possible to make asymmetric neighborhood definitions symmetric by a union of the upper and lower triangular part of the adjacency matrix.
+  
+It is possible to adjust the weight of neighbors based on additional information. Distance is frequently used for this purpose by defining an inversely weighted approach ($w_{i,j} = \frac{1}{dist_{i,j}^p}$ with p as a tuning parameter to specify how strongly weights drop with distance).
+
+In an additional step we need to create the weight matrix $W$ from the (potentially distance weighted) neighborhood matrix $C$. In R $W$ is represented as a weighted list. The following options exist:
+
+ - B is the basic binary coding
+ - W is row standardised (sums over all links to n)
+ - C is globally standardised (sums over all links to n)
+ - U is equal to C divided by the number of neighbours (sums over all links to unity)
+ - S is the variance-stabilizing coding scheme proposed by Tiefelsdorf et al. 1999, p. 167-168 (sums over all links to n).
+ 
+For most situations row standardized coding is recommended. It ensures that the weights of all neighbors sum up to unity which is a useful property. The weighted sum of a lagged attribute (predictor or respone) is thereby simply the weighted mean. If binary coding would be used this would not be the case and observations with more neighbors would get more weights compared to observations with less neighbors.
+
+If zero policy is set to TRUE, weights vectors of zero length are inserted for regions without neighbor in the neighbors list. These will in turn generate lag values of zero. The spatially lagged value of x for the zero-neighbor region will then be zero, which may (or may not) be a sensible choice.
+
+
+
+
+### Distance based neighborhood definition
+
+```{r}
+centroidsKreise <- st_centroid(kreiseWithCovidMeldeWeeklyCleaned, of_largest_polygon=TRUE)
+distnb <- dnearneigh(centroidsKreise, d1=1, d2= 70*10^3)
+table(card(distnb))
+```
+
+```{r}
+plot(distnb, coords=st_coordinates(centroidsKreise), col="red",  cex=.7)
+```
+
+
+### Contiguity based neighborhood definition
+
+```{r}
+polynb <- poly2nb(kreiseWithCovidMeldeWeeklyCleaned)
+table(card(polynb))
+```
+
+```{r}
+plot(polynb, coords=st_coordinates(centroidsKreise), col="red",  cex=.7)
+```
+
+
+### 10-nearest neighbors
+
+As an alternative we could use the 10 nearest neighbors
+
+```{r}
+k10nb <- knn2nb(knearneigh(st_coordinates(centroidsKreise), k = 10))
+table(card(k10nb))
+```
+
+```{r}
+plot(k10nb, coords=st_coordinates(centroidsKreise), col="red",  cex=.7)
+```
+
+
+The neighbor list is **not** symmetric.
+
+```{r}
+is.symmetric.nb(k10nb)
+```
+
+### Graph based neighborhoods
+
+Minimum spanning tree: connects all nodes together while minimizing total edge length
+Relative neighborhood graph: all nodes connected for those the lens formed by the radii of their circles contains no other points
+Gabriel graph: all nodes connected if were is no other node inside a circle with their distance
+Delaunay triangulation:: all nodes connected for which the circumcise around ABC contains no other nodes
+
+The Gabriel graph is a subgraph of the delaunay triangulation and has the relative neighbor graph as a sub-graph. 
+
+```{r}
+require(tripack) # for triangulation, you might need to install this package
+```
+
+Graph based neighborhood can be defined as follows.
+
+```{r , cache=TRUE}
+# delauny triangulation
+delauny_nb <- tri2nb(st_coordinates(centroidsKreise) )
+# sphere of influence
+soi_nb <- graph2nb(soi.graph(delauny_nb, st_coordinates(centroidsKreise)))
+# gabriel graph
+gabriel_nb <- graph2nb(gabrielneigh(st_coordinates(centroidsKreise)))
+# relative graph
+rg_nb <- graph2nb(relativeneigh(st_coordinates(centroidsKreise)))
+```
+
+```{r}
+table(card(delauny_nb))
+table(card(soi_nb))
+table(card(gabriel_nb))
+table(card(rg_nb))
+```
+
+
+```{r}
+plot(delauny_nb, coords=st_coordinates(centroidsKreise), col="red",  cex=.7 )
+mtext("Delauny Triangulation")
+```
+
+```{r}
+plot(soi_nb, coords=st_coordinates(centroidsKreise), col="red",  cex=.7 )
+mtext("Sphere of influence")
+```
+
+```{r}
+plot(gabriel_nb, coords=st_coordinates(centroidsKreise), col="red",  cex=.7 )
+mtext("Gabriel graph")
+```
+
+```{r}
+plot(rg_nb, coords=st_coordinates(centroidsKreise), col="red",  cex=.7 )
+mtext("Relative graph")
+```
+
+### Combination of contiguity and distance based neighborhood definitions
+
+For the following analysis we will be using a combination of the contiguity and the distance based neighborhood definition.
+
+```{r}
+unionedNb <- union.nb(distnb, polynb)
+
+table(card(unionedNb))
+```
+
+```{r, fig.width=6, fig.height=8}
+plot(unionedNb, coords=st_coordinates(centroidsKreise), col="red",  cex=.7)
+```
+
+We will consider the different distances between the centroids by an inverse distance relationship. Note that that we row standardize the weights afterwards.
+
+```{r}
+dlist <- nbdists(unionedNb, st_coordinates(centroidsKreise))
+dlist <- lapply(dlist, function(x) 1/x)
+unionedListw_d <- nb2listw(unionedNb, glist=dlist, style = "W")
+
+save(unionedListw_d, file="../../data/unionedListw_d_berlinNotSubdivided.Rdata")
+
+hist(unlist(unionedListw_d$weights), las=1, xlab="weights", main="unioned contiguity and 50km distance nb, idw, W")
+```
+
+# Global Moran's I
+
+Let's now calculate the global Moran's I as a measur of global spatial autocorrelation.
+
+$$I = \frac{n}{W} \frac{\sum_i \sum_j w_{ij} (x_i - \bar{x}) (x_j - \bar{x})) } {(\sum_i (x_i - \bar{x})^2)}$$
+
+With $i$ and $j$ indices of the districts, $W$ the spatial weight matrix and $w_{ij}$ elements of $W$.
+
+The range of Moran's I depends on the largest and second largest eigenvalue of the weight matrix $W$
+Often the interval is in the range -0.5 to 1.15
+
+Since we have count data and a varying population at risk in each district we are using the *empirical index modification* of Moran's I for that. I loop through all weeks (stored in separate fields therefore, I am looping over the fields), calculate the empirical index modification of Moran's I and storing the results in a list. Afterwards I extract the Moran's I value and the p-value and store it together with the date in a data.frame that is then used for plotting.
+
+The statistic used in the empirical index modification of Moran's I is:
+
+$$EBI = \frac{n}{S0} \frac{ \sum_i \sum_j w_{ij} z_i z_j} { \sum_i (z_i - \bar{z})^2}$$
+
+-   m is the number of observations
+-   n the number of cases (observed events)
+-   x the population
+-   $S0 = \sum_i \sum_j w_{ij}$ the sum of the weights
+-   $z_i = (p_i - b) / \sqrt(v_i)$ - the deviation of the estimated
+    marginal mean standardized by an estimate of its standard deviation
+-   $p_i = n_i / x_i$ - the estimated rate
+-   $v_i = a + (b / x_i)$ - the marginal variance of $p_i$
+-   $a = s^2 - b / (\sum_i x_i / m)$
+-   $s^2 = \sum_i x_i (p_i - b)^2 / \sum_i x_i$
+-   b is the marginal expectation of $p_i$
+
+The permutation test is based on an permutation of the vector
+$(z_1, z_2, ..., z_n)$. For each permuted map EBI is calculated and
+stored. Finally, the observed EBI is compared against vector of EBIs for
+the permutation to derive the p-value.
+
+```{r, message=FALSE, warning=FALSE}
+n <- length(dateStrVec)
+mcEBayWeekVec <- vector("list", n)
+
+for(i in 1:n)
+{
+  casesName <- paste0("casesWeek_", dateStrVec[i])
+  ebiMc <- EBImoran.mc(n= st_drop_geometry(kreiseWithCovidMeldeWeeklyCleaned)%>% pull(casesName),
+              x= kreiseWithCovidMeldeWeeklyCleaned$EWZ, listw = unionedListw_d, nsim =999)
+  mcEBayWeekVec[[i]] <- ebiMc
+}
+
+mcVals <- sapply(mcEBayWeekVec, FUN = function(x) x$statistic)
+mcpVals <- sapply(mcEBayWeekVec, FUN = function(x) x$p.value)
+
+
+mcEBayesDf <- data.frame(MC = mcVals, p_value = mcpVals, date=lubridate::ymd(dateStrVec))
+ggplot(mcEBayesDf, aes(x=MC, y=p_value)) + geom_point(alpha=0.5) + geom_hline(yintercept = 0.05, lty=3)
+```
+
+```{r}
+p1 <- ggplot(mcEBayesDf, aes(y=MC, x=date)) + geom_line()
+```
+
+Are the peaks in global spatial autocorrelation at the peaks of the pandemic waves? 
+
+```{r}
+p2 <- ggplot(nationalAggCases, aes(x=week, y= incidence)) + geom_line()
+```
+
+```{r, fig.height=5, fig.width=8}
+ggarrange(p1, p2, ncol=1, nrow=2)
+```
+The last week might not complete.
+We see that the peaks in the incidence rate co-occur with high spatial autocorrelation. However, we also see that in the summer of 2020 we had a strong increase in spatial autocorrelation while the incidence rate was relatively low.
+
+
+# Local cluster
+
+
+Local Moran's I (also named LISA) calculates Moran's I in a
+neighborhood, check's significance and compares on the Moran's I value
+with the values in the neighborhood. 
+
+$$ I_i = \frac{(x_i-\bar{x})}{{∑_{k=1}^{n}(x_k-\bar{x})^2}/(n-1)}{∑_{j=1}^{n}w_{ij}(x_j-\bar{x})} $$
+With $i$ the observation (district) index $w_{ij}$ the element of the spatial weight matrix $W$, $x$ the value of interest (here the empirical bayes index of the incidence rate) and $k$ the number of neighbors of district $i$.$\bar{x}$ is the global average. 
+
+
+For the interpretation, the local Moran's I is categorized (if significant) in comparison to the global mean as well. The following categories are used:
+
+-   High -- high -- value higher than the global mean, surrounded by
+    similar values (cluster of high values)
+-   Low -- low -- value lower than the global mean, surrounded by
+    dissimilar values (negative spatial autocorrelation) , i.e. low local outlier
+-   High --low -- high value (compared to the mean) in a neighborhood of
+    negative spatial autocorrelation, i.e. high local outlier
+-   Low - high -- low value (compared to the mean) in a neighborhood of
+    positive spatial autocorrelation, i.e. a cluster of low values
+
+We will reuse the empirical bayes index calculated above. We can do this by extracting the values from the list.
+
+```{r}
+empBayIndexWeek <- sapply(mcEBayWeekVec, FUN = function(x) x$z)
+```
+
+The following function is used to calculate local Moran's I
+
+```{r}
+getLocalMoranFactor <- function(x, listw, pval, quadr = "mean", p.adjust.method ="holm")
+{
+  if(! (quadr %in% c("mean", "median", "pysal")))
+    stop("getLocalMoranFactor: quadr needs to be one of the following values: 'mean', 'median', 'pysal'")
+  
+  lMc <- localmoran(x, listw= listw, 
+                    p.adjust.method = p.adjust.method)
+  lMcQuadr <- attr(lMc, "quadr")
+  
+  lMcFac <- as.character(lMcQuadr[, quadr])
+  idx <- which(lMc[,5]> pval)
+  lMcFac[idx] <- "Not sign."
+  lMcFac <- factor(lMcFac, levels = c("Not sign.", "Low-Low", "Low-High", "High-Low",  "High-High"))
+  return(lMcFac)
+}
+```
+
+Next we loop over the matrix that stores the empirical bayes index values for each week and calculate local Moran's I. We get for each week one value that indicates if local Moran's I is significant and in which category it belongs. As we added the district identifyer we can join the results to the sf object and plot the maps.
+
+```{r}
+lMcFac <- data.frame(RS = kreiseWithCovidMeldeWeeklyCleaned$RS)
+for(i in 1:n)
+{
+  fieldName <- paste0("lMcFacWeek_", dateStrVec[i])
+  res <- getLocalMoranFactor(empBayIndexWeek[,i], listw = unionedListw_d, pval=0.05)
+  res <- as.data.frame(res)
+  names(res) <- fieldName
+  lMcFac <- cbind(lMcFac, res)
+}
+
+```
+
+```{r}
+kreiseWithCovidMeldeWeeklyCleanedLMc <- left_join(kreiseWithCovidMeldeWeeklyCleaned, lMcFac, by=c("RS"))
+```
+
+## Plot maps with incidence rate and local Moran's I
+
+```{r}
+localMcPalette <- c("white", "midnightblue", "lightblue", "lightpink", "red")
+```
+
+Next we loop over all weeks and create tmap graphics that can then be used for plotting or to create an animation
+
+```{r, message=FALSE, echo=FALSE}
+breaks = c(0, 5, 25, 50, 100, 250, 500, 1000)
+n <- length(dateStrVec)
+mapList4animation <- vector("list", length= n-1) 
+
+i <- 1
+
+for(aDateStr in dateStrVec[1:n]) 
+{
+  
+  fieldName <- paste0("casesWeek_", aDateStr)
+  fieldNameLMc <- paste0("lMcFacWeek_", aDateStr)
+  
+  title <- paste(gsub(pattern = "_", replacement = "/", x=aDateStr), "\nIncidence (week)\n per 100,000 Inhab., ")
+  
+  kreiseWithCovidMeldeWeeklyCleaned$incidence_rate <- pull(st_drop_geometry(kreiseWithCovidMeldeWeeklyCleaned), fieldName) / st_drop_geometry(kreiseWithCovidMeldeWeeklyCleaned)$EWZ * 10^5
+  
+  theMap <- tm_shape(kreiseWithCovidMeldeWeeklyCleaned) + tm_polygons(col="incidence_rate", breaks= breaks,  legend.hist = TRUE, palette= "-plasma",
+                         legend.reverse = TRUE, title = "Incidence rate") +
+  tm_layout(legend.outside = TRUE, bg.color = "darkgrey", outer.bg.color = "lightgrey",
+            legend.outside.size = 0.5, attr.outside = TRUE, title = title,
+            legend.outside.position = "left") + tm_scale_bar()
+  
+  lMcMap <- tm_shape(kreiseWithCovidMeldeWeeklyCleanedLMc) + 
+  tm_polygons(col=fieldNameLMc, palette= localMcPalette, 
+              legend.hist = FALSE, legend.reverse = TRUE, title = "LISA") +
+  tm_layout(legend.outside = TRUE, bg.color = "darkgrey", outer.bg.color = "lightgrey",
+            legend.outside.size = 0.5, attr.outside = TRUE, 
+            legend.outside.position = "right") + tm_scale_bar()
+  
+  mapList4animation[[i]] <- tmap_arrange(theMap, lMcMap)
+  i <- i+1
+  
+}
+```
+
+```{r, eval=FALSE, message=FALSE}
+ ani.options('ffmpeg')
+saveVideo({
+  
+  ani.options(interval = 0.5, verbose = FALSE)
+  for (aMap in mapList4animation) {
+    print(aMap)
+    ani.pause()
+  }
+}, video.name =  "covid19incWeekWithLMc.mp4",  single.opts = "utf8: false", autoplay = FALSE, 
+  ani.height = 1080, ani.width = 1920, title = "Temporal development of covid-19 incidence in Germany", 
+  description = "Temporal development of covid-19 incidence in Germany, based on the Meldedatum in a similar way as the RKI maps. Based on a weekly aggregation. Together with local Moran's I.")
+```
+
+
+<iframe width="860" height="480" src="https://heibox.uni-heidelberg.de/f/23581f1b0a73436fa024/?dl=1" frameborder="0" allowfullscreen></iframe>
+
+Let's look at a few examples
+
+```{r, fig.height=3, fig.width=9}
+ggplot(nationalAggCases, aes(x=week, y= incidence)) + geom_line() +
+  geom_vline(xintercept = lubridate::ymd(dateStrVec[8]), lty=2, col="red" )
+```
+
+```{r}
+mapList4animation[[8]]
+```
+
+```{r, fig.height=3, fig.width=9}
+ggplot(nationalAggCases, aes(x=week, y= incidence)) + geom_line() +
+  geom_vline(xintercept = lubridate::ymd(dateStrVec[12]), lty=2, col="red" )
+```
+
+```{r}
+mapList4animation[[12]]
+```
+
+```{r, fig.height=3, fig.width=9}
+ggplot(nationalAggCases, aes(x=week, y= incidence)) + geom_line() +
+  geom_vline(xintercept = lubridate::ymd(dateStrVec[33]), lty=2, col="red" )
+```
+
+```{r}
+mapList4animation[[33]]
+```
+
+```{r, fig.height=3, fig.width=9}
+ggplot(nationalAggCases, aes(x=week, y= incidence)) + geom_line() +
+  geom_vline(xintercept = lubridate::ymd(dateStrVec[50]), lty=2, col="red" )
+```
+
+
+```{r}
+mapList4animation[[50]]
+```
+
+```{r, fig.height=3, fig.width=9}
+ggplot(nationalAggCases, aes(x=week, y= incidence)) + geom_line() +
+  geom_vline(xintercept = lubridate::ymd(dateStrVec[58]), lty=2, col="red" )
+```
+
+```{r}
+mapList4animation[[58]]
+```
+
+
+```{r, fig.height=3, fig.width=9}
+ggplot(nationalAggCases, aes(x=week, y= incidence)) + geom_line() +
+  geom_vline(xintercept = lubridate::ymd(dateStrVec[93]), lty=2, col="red" )
+```
+
+```{r}
+mapList4animation[[93]]
+```
+

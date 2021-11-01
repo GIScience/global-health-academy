@@ -1,0 +1,550 @@
+---
+title: "Spatial regression analysis for the total number of cases"
+author: "Sven Lautenbach"
+date: "`r Sys.Date()`"
+output:
+  rmdformats::readthedown:
+    highlight: kate
+    gallery: TRUE
+    lightbox: TRUE
+    thumbnails: TRUE
+---
+
+
+```{r setup, include=FALSE}
+library(knitr)
+library(rmdformats)
+require(sf)
+require(spdep)
+require(ggpubr)
+require(ggplot2)
+require(tidyverse)
+require(tmap)
+require(GGally)
+require(MASS)
+
+## Global options
+options(max.print="110")
+opts_chunk$set(echo=TRUE,
+	             cache=FALSE,
+               prompt=FALSE,
+               tidy=TRUE,
+               comment=NA,
+               message=FALSE,
+               warning=FALSE)
+opts_knit$set(width=75)
+set.seed(42)
+```
+
+```{r}
+load("../../data/unionedListw_d_berlinNotSubdivided.Rdata")
+load("../../data/kreiseWithCovidMeldedatumWeeklyPredictors.Rdata")
+```
+
+# Explorative analysis
+
+## Scatterplot matrix
+
+```{r, fig.width=11, fig.height=11}
+st_drop_geometry(kreiseWithCovidMeldeWeeklyCleanedPredictorsAdded) %>% 
+  dplyr::select(incidenceTotal, Langzeitarbeitslosenquote, Hochqualifizierte, Breitbandversorgung,
+         Stimmenanteile.AfD, Studierende, Einpendler, Auspendler, Einpendler, Auslaenderanteil, Laendlichkeit) %>% 
+  ggpairs() 
+```
+
+We see some predictors correlating with the incidence rate as well as some moderate collinearity between some of our predictors.
+
+## Maps of response and predictors
+
+For reference I create a series of maps for the response and all predictors.
+
+```{r}
+kreiseWithCovidMeldeWeeklyCleanedPredictorsAdded %>% 
+tm_shape() + tm_polygons(col=c("incidenceTotal"),   legend.hist = TRUE, palette="-plasma",
+                         legend.reverse = TRUE, title = "Incidence rate for total period") +
+  tm_layout(legend.outside = TRUE, bg.color = "darkgrey", outer.bg.color = "lightgrey",
+            legend.outside.size = 0.5, attr.outside = TRUE, 
+            main.title = "Incidence rate total period") + 
+  tm_scale_bar()
+```
+
+```{r}
+mForeigner <- kreiseWithCovidMeldeWeeklyCleanedPredictorsAdded %>% 
+ tm_shape() + tm_polygons(col=c("Auslaenderanteil"), legend.hist = TRUE, 
+                         legend.reverse = TRUE, title = "Share of foreigners",
+                         style= "pretty") +
+  tm_layout(legend.outside = TRUE, bg.color = "darkgrey", outer.bg.color = "lightgrey",
+            legend.outside.size = 0.5, attr.outside = TRUE, 
+            main.title = "Foreign population") + 
+  tm_scale_bar()
+
+print(mForeigner)
+```
+
+```{r}
+kreiseWithCovidMeldeWeeklyCleanedPredictorsAdded %>% 
+tm_shape() + tm_polygons(col=c("Auspendler"),   legend.hist = TRUE, 
+                         legend.reverse = TRUE, 
+                         title = "Outgoing commuters as share\nof total employees",
+                         style= "kmeans") +
+  tm_layout(legend.outside = TRUE, bg.color = "darkgrey", outer.bg.color = "lightgrey",
+            legend.outside.size = 0.5, attr.outside = TRUE, 
+            main.title = "Outgoing commuters") + 
+  tm_scale_bar()
+```
+         
+```{r}
+kreiseWithCovidMeldeWeeklyCleanedPredictorsAdded %>% 
+tm_shape() + tm_polygons(col=c("Einpendler"),   legend.hist = TRUE, 
+                         legend.reverse = TRUE, 
+                         title = "Incomming commuters as share\nof total employees",
+                         style= "kmeans") +
+  tm_layout(legend.outside = TRUE, bg.color = "darkgrey", outer.bg.color = "lightgrey",
+            legend.outside.size = 0.5, attr.outside = TRUE, 
+            main.title = "Incomming commuters") + 
+  tm_scale_bar()
+```
+     
+```{r}
+mRural <- kreiseWithCovidMeldeWeeklyCleanedPredictorsAdded %>% 
+ tm_shape() + tm_polygons(col=c("Laendlichkeit"), legend.hist = TRUE, palette = "Purples",
+                         legend.reverse = TRUE, title = "Share of inhabitants in places\nwith less then 150 Inh/sqkm",
+                         style= "kmeans") +
+  tm_layout(legend.outside = TRUE, bg.color = "darkgrey", outer.bg.color = "lightgrey",
+            legend.outside.size = 0.5, attr.outside = TRUE, 
+            main.title = "Ruralness") + 
+  tm_scale_bar()
+print(mRural)
+```          
+         
+```{r}
+kreiseWithCovidMeldeWeeklyCleanedPredictorsAdded %>% 
+tm_shape() + tm_polygons(col=c("Studierende"), legend.hist = TRUE, palette = "Purples",
+                         legend.reverse = TRUE, title = "Students per \n1000 Inhabitants",
+                         style= "kmeans") +
+  tm_layout(legend.outside = TRUE, bg.color = "darkgrey", outer.bg.color = "lightgrey",
+            legend.outside.size = 0.5, attr.outside = TRUE, 
+            main.title = "Students") + 
+  tm_scale_bar()
+```     
+         
+```{r}
+kreiseWithCovidMeldeWeeklyCleanedPredictorsAdded %>% 
+tm_shape() + tm_polygons(col=c("Hochqualifizierte"),   legend.hist = TRUE, 
+                         legend.reverse = TRUE, title = "Highly qualified employees/ total employees",
+                         style= "kmeans") +
+  tm_layout(legend.outside = TRUE, bg.color = "darkgrey", outer.bg.color = "lightgrey",
+            legend.outside.size = 0.5, attr.outside = TRUE, 
+            main.title = "Highly qualified employees") + 
+  tm_scale_bar()
+```
+
+```{r}
+kreiseWithCovidMeldeWeeklyCleanedPredictorsAdded %>% 
+tm_shape() + tm_polygons(col=c("Breitbandversorgung"), legend.hist = TRUE, palette = "Purples",
+                         legend.reverse = TRUE, title = "Share of households with internet \nconnectivity > 5 mBits/s",
+                         style= "kmeans") +
+  tm_layout(legend.outside = TRUE, bg.color = "darkgrey", outer.bg.color = "lightgrey",
+            legend.outside.size = 0.5, attr.outside = TRUE, 
+            main.title = "Highspeed internet") + 
+  tm_scale_bar()
+```     
+     
+         
+```{r}
+kreiseWithCovidMeldeWeeklyCleanedPredictorsAdded %>% 
+tm_shape() + tm_polygons(col=c("Langzeitarbeitslosenquote"),   legend.hist = TRUE, palette="Oranges",
+                         legend.reverse = TRUE, title = "Unemployment rate [%]") +
+  tm_layout(legend.outside = TRUE, bg.color = "darkgrey", outer.bg.color = "lightgrey",
+            legend.outside.size = 0.5, attr.outside = TRUE, 
+            main.title = "Long term unemloyment rate") + 
+  tm_scale_bar()
+```
+
+```{r}
+kreiseWithCovidMeldeWeeklyCleanedPredictorsAdded %>% 
+tm_shape() + tm_polygons(col=c("Stimmenanteile.AfD"),   legend.hist = TRUE, palette="Blues",
+                         legend.reverse = TRUE, title = "Share of votes") +
+  tm_layout(legend.outside = TRUE, bg.color = "darkgrey", outer.bg.color = "lightgrey",
+            legend.outside.size = 0.5, attr.outside = TRUE, 
+            main.title = "Right winged party (AfD)") + 
+  tm_scale_bar()
+```
+
+# Normal GLM
+
+We start with a normal GLM before checking for spatial autocorrelation in the residuals. Since we have count data a Poisson GLM with an offset for the population at risk seems a natural choice.
+
+## Poisson GLM
+
+```{r}
+modelGlm <- glm(sumCasesTotal ~ Stimmenanteile.AfD + Auslaenderanteil + Hochqualifizierte + Langzeitarbeitslosenquote + Einpendler + Studierende + Laendlichkeit +  offset(log(EWZ)), data= kreiseWithCovidMeldeWeeklyCleanedPredictorsAdded, family=poisson)
+summary(modelGlm)
+```
+
+## Negative binomial GLM to account for overdispersion
+
+Since we should be suspicious with respect to overdispersion we will run a negative binomial and afterwards a quasi-poisson GLM to account for that. Since the negative binomial GLM triggers some complications when using it with the spatial eigenvector mapping we will stay with the quasi-poisson model afterwards.
+
+```{r}
+modelGlmNb <- glm.nb(sumCasesTotal ~ Stimmenanteile.AfD + Auslaenderanteil + Hochqualifizierte + Langzeitarbeitslosenquote + Einpendler + Studierende + Laendlichkeit + offset(log(EWZ)), data= kreiseWithCovidMeldeWeeklyCleanedPredictorsAdded)
+summary(modelGlmNb)
+```
+
+```{r}
+drop1(modelGlmNb)
+```
+
+
+```{r}
+modelGlmNb <- update(modelGlmNb, ~ . - Einpendler)
+summary(modelGlmNb)
+```
+
+```{r}
+modelGlmNb <- update(modelGlmNb, ~ . - Studierende)
+summary(modelGlmNb)
+```
+
+## Quasi-Poisson GLM to account for overdispersion
+
+```{r}
+modelGlmQp <- glm(sumCasesTotal ~ Stimmenanteile.AfD + Auslaenderanteil + Hochqualifizierte + Langzeitarbeitslosenquote + Einpendler  + Studierende + Laendlichkeit + offset(log(EWZ)), data= kreiseWithCovidMeldeWeeklyCleanedPredictorsAdded, family = quasipoisson)
+summary(modelGlmQp)
+```
+
+```{r}
+drop1(modelGlmQp, test = "F")
+```
+
+```{r}
+modelGlmQp <- update(modelGlmQp, ~ . - Studierende)
+drop1(modelGlmQp, test = "F")
+```
+
+
+```{r}
+modelGlmQp <- update(modelGlmQp, ~ . - Langzeitarbeitslosenquote)
+drop1(modelGlmQp, test = "F")
+```
+
+```{r}
+modelGlmQp <- update(modelGlmQp, ~ . - Einpendler)
+drop1(modelGlmQp, test = "F")
+```
+
+Explained deviance:
+
+```{r}
+1 - modelGlmNb$deviance / modelGlmNb$null.deviance
+```
+
+```{r}
+summary(modelGlmQp)
+```
+
+Explained deviance:
+
+```{r}
+1 - modelGlmQp$deviance / modelGlmQp$null.deviance
+```
+
+We end up with a model of decent quality. Directions of effect seem to be aligned with expectations:
+
+  - higher share of votes for right winged party is associated with higher incidence. Presumably a proxy for the share of population opposing mask wearing and social distancing and vaccination
+  - higher share of foreigners is associated with higher incidence. Foreigners might not be reach by information campaigns with respect to social distancing due to language problems
+  - higher share of highly qualified work force is associated with lower incidence rates. For those employees it might be easier to work from home office and to avoid close contacts during work hours at office
+  - higher ruralness (higher share of population living in rural areas) is associated with lower incidence rates. This might be due to lower contact rates e.g. by lower share of public transport.
+
+# Checking for spatial autocorrelation in the residuals
+
+## Global Moran's I
+
+For regression residuals we need to use a different test as residuals are centered around zero and will sum up to zero.
+
+```{r}
+lm.morantest(modelGlmNb, listw = unionedListw_d)
+```
+
+
+```{r}
+(moranGlmQp <- lm.morantest(modelGlmQp, listw = unionedListw_d))
+```
+
+Both model suffer from significant global spatial autocorrelation.
+
+This implies that the usual assumption about independence of errors is violated. In turn, our standard errors might be too low, p-values too small, size (and potentially even sign) of the regression coefficients might be wrong. So we need to incorporate spatial autocorrelation in our analysis.
+
+## Plot residuals
+
+```{r}
+kreiseCentroids <- st_centroid(kreiseWithCovidMeldeWeeklyCleanedPredictorsAdded, of_largest_polygon = TRUE)
+```
+
+Add residuals to centroids for plotting
+
+```{r}
+kreiseCentroids$residGlmNb <- residuals(modelGlmNb)
+kreiseCentroids$residGlmNbAbs <- abs(kreiseCentroids$residGlmNb)
+
+kreiseCentroids$residGlmQp <- residuals(modelGlmQp)
+kreiseCentroids$residGlmQpAbs <- abs(kreiseCentroids$residGlmQp)
+```
+
+```{r}
+m1 <- tm_shape(kreiseWithCovidMeldeWeeklyCleanedPredictorsAdded) + 
+  tm_polygons(col="grey") +
+  tm_shape(kreiseCentroids) + 
+  tm_bubbles(size = "residGlmNbAbs", col= "residGlmNb", palette = "-RdBu", 
+             alpha=.9, perceptual=TRUE, scale=.8, border.alpha=.3, 
+             title.size = "Abs residual", title.col="Residuals", n=3) + 
+  tm_layout(main.title = "Pearson residuals, GLM NB", bg="darkgrey", 
+            legend.outside = TRUE, attr.outside = TRUE) +
+  tm_scale_bar()
+
+m2 <- tm_shape(kreiseWithCovidMeldeWeeklyCleanedPredictorsAdded) + 
+  tm_polygons(col="grey") +
+  tm_shape(kreiseCentroids) + 
+  tm_bubbles(size = "residGlmNbAbs", col= "residGlmNb", palette = "-RdBu", 
+             alpha=.9, perceptual=TRUE, scale=.8, border.alpha=.3, 
+             title.size = "Abs residual", title.col="Residuals", n=3) + 
+  tm_layout(main.title = "Pearson residuals, GLM QP", bg="darkgrey", 
+            legend.outside = TRUE, attr.outside = TRUE) +
+  tm_scale_bar()
+
+tmap_arrange(m1,m2)
+```
+As indicated by global Moran's I we see that large positive and large negative residuals form some cluster. The differences between both GLM models seem neglectable.
+
+# Spatial Eigenvector Mapping
+
+The idea behind the spatial eigenvector mapping approach is to use additional covariates that aborb the spatial autocorrelation, leading to unbiased estimators for the other predictors. The additional covariates are based on the eigenfunction decomposition of the spatial weight  matrix $W$. Eigenvectors of $W$ represent the decompositions the spatial weight Matrix into all mutually orthogonal eigenvectors. Those with positive eigenvalues represent positive autocorrelation, whereas eigenvectors with negative eigenvalues represent negative autocorrelation. Only eigenvectors with positive eigenvalues are used for the selection.
+
+## Selection of eigenvectors
+
+The function *ME* uses brute force eigenvector selection to reach a subset of such vectors to be added to the RHS of the GLM model to reduce residual autocorrelation to below the specified alpha value (defaults to 0.05). Since eigenvector selection only works on symmetric weights, the weights are made symmetric beforehand.
+
+```{r, cache= TRUE}
+meQp <- spatialreg::ME(sumCasesTotal ~ Stimmenanteile.AfD + Auslaenderanteil + Hochqualifizierte + Laendlichkeit , family = quasipoisson, data = kreiseWithCovidMeldeWeeklyCleanedPredictorsAdded, offset = log(EWZ), listw = unionedListw_d)
+```
+
+Refitting GLM under incorporation of the selected spatial eigenvectors:
+
+```{r}
+modelSevmQp <- glm(sumCasesTotal ~ Stimmenanteile.AfD + Auslaenderanteil + Hochqualifizierte + Laendlichkeit + fitted(meQp),
+                   family = quasipoisson, 
+                   data = kreiseWithCovidMeldeWeeklyCleanedPredictorsAdded, offset = log(EWZ))
+summary(modelSevmQp)
+```
+
+The procedure added `r ncol(fitted(meQp))` spatial eigenvectors to the model. Together this leads to a more than satisfying amount of explained deviance. However, we need to keep in mind that a good share of that come from the spatial eigenvectors.
+
+```{r}
+1 - modelSevmQp$deviance / modelSevmQp$null.deviance
+```
+
+Ruralness of the district now became insignificant so we might want to drop it from the model.
+
+```{r, cache= TRUE}
+meQp <- spatialreg::ME(sumCasesTotal ~ Stimmenanteile.AfD + Auslaenderanteil + Hochqualifizierte,
+                       family = quasipoisson, data = kreiseWithCovidMeldeWeeklyCleanedPredictorsAdded, 
+                       offset = log(EWZ), listw = unionedListw_d)
+```
+
+## Refitting GLM under incorporation of the selected spatial eigenvectors:
+
+```{r}
+modelSevmQp <- glm(sumCasesTotal ~ Stimmenanteile.AfD + Auslaenderanteil + Hochqualifizierte + fitted(meQp),
+                   family = quasipoisson, offset = log(EWZ), 
+                   data = kreiseWithCovidMeldeWeeklyCleanedPredictorsAdded)
+summary(modelSevmQp)
+```
+
+The eigenvectors selected did not change by excluding ruralness from the model.
+
+## Plotting selected spatial eigenvectors
+
+Presumably we have missed a lot of other predictors that are now partially absorbed into different eigenvectors. It might be worth to plot and investigate the eigenvectors that made it into the model. Therefore, we attach the selected eigenvectors to the sf object and plot them.
+
+```{r}
+summary(fitted(meQp))
+sevQp <- fitted(meQp)
+kreiseWithCovidMeldeWeeklyCleanedPredictorsAddedSvem <- st_sf(data.frame(kreiseWithCovidMeldeWeeklyCleanedPredictorsAdded, sevQp))
+```
+
+```{r}
+tm_shape(kreiseWithCovidMeldeWeeklyCleanedPredictorsAddedSvem) + 
+  tm_polygons(col= colnames(sevQp), palette = "-RdBu", lwd=.5,   
+             n=6, midpoint=0,  legend.show = FALSE) + 
+  tm_layout(main.title = "Selected spatial eigenvectors", legend.outside = TRUE,
+            attr.outside = TRUE, panel.show = TRUE, 
+            panel.labels = colnames(sevQp)) +
+  tm_scale_bar()
+```
+
+## Rechecking spatial autocorrelation
+
+```{r}
+(moranSevmQp <- lm.morantest(modelSevmQp, listw = unionedListw_d))
+```
+
+We see that were is still some left over spatial autocorrelation not absorbed by the spatial eigenvectors. However, the amount of spatial autocorrelation has been reduced by a strong degree, from `r round(as.numeric(moranGlmQp$estimate[1]),2)` to `r round(as.numeric(moranSevmQp$estimate[1]),2)`.
+
+
+```{r}
+kreiseCentroids$residSevmQp <- residuals(modelSevmQp)
+kreiseCentroids$residSevmQpAbs <- abs(kreiseCentroids$residSevmQp)
+
+tm_shape(kreiseWithCovidMeldeWeeklyCleanedPredictorsAdded) + 
+  tm_polygons(col="grey") +
+  tm_shape(kreiseCentroids) + 
+  tm_bubbles(size = "residSevmQpAbs", col= "residSevmQp", palette = "-RdBu", 
+             alpha=.9, perceptual=TRUE, scale=.8, border.alpha=.3, 
+             title.size = "Abs residual", title.col="Residuals", n=5) + 
+  tm_layout(main.title = "Pearson residuals, SEVM NB", bg="darkgrey", 
+            legend.outside = TRUE, attr.outside = TRUE) +
+  tm_scale_bar()
+```
+## Spatial varying coefficients?
+
+Which eigenvectors are correlated with ruralness? As ruralness became insignificant after incorporation of the spatial eigenvectors we might suspect that it is correlated with a subset of the eigenvectors. Let's find out which eigenvectors are involved.
+
+```{r, fig.height=6, fig.width=6}
+kreiseWithCovidMeldeWeeklyCleanedPredictorsAddedSvem %>% st_drop_geometry() %>%
+  dplyr::select(Laendlichkeit, colnames(sevQp)) %>%
+  ggpairs()
+```
+
+Eigenvectors 2 and 1 are negatively correlated with ruralness ("Laendlichkeit").
+
+```{r, include = FALSE}
+options(max.print =  getOption("max.print") + 10) # allow longer printouts, e.g. by summary
+
+```
+
+It might be that the spatial eigenvectors could be used to moderate the effect of ruralness - i.e. that the regression coefficient varies in space. Likewise we could investigate moderating relationships between other predictors and spatial eigenvectors.
+
+```{r}
+colnames(sevQp)
+```
+
+
+```{r}
+modelSevmQpInt <- glm(sumCasesTotal ~ Stimmenanteile.AfD + Auslaenderanteil + Hochqualifizierte + 
+                        (vec1 +vec2) *Laendlichkeit + 
+                        vec4 + vec6 + vec18 + vec21 + vec5 + vec11 + vec19 + vec10,
+                   family = quasipoisson, offset = log(EWZ), 
+                   data = kreiseWithCovidMeldeWeeklyCleanedPredictorsAddedSvem)
+summary(modelSevmQpInt)
+```
+
+
+```{r}
+drop1(modelSevmQpInt, test="F")
+```
+
+
+
+```{r}
+1 - modelSevmQpInt$deviance / modelSevmQpInt$null.deviance
+1 - modelSevmQp$deviance / modelSevmQp$null.deviance
+```
+
+There is a significant interaction between ruralness and spatial eigenvector 2 and 1 while the main effect of ruralness is clearly not significant. However, the explained deviance does not increase much.
+How does the interaction look like in space?
+
+```{r, fig.width=11, fig.height=6}
+mRuralVec2 <- kreiseWithCovidMeldeWeeklyCleanedPredictorsAddedSvem %>%
+  mutate(vec2Ruralness =  vec2 * Laendlichkeit) %>%
+  tm_shape() + tm_polygons(col=c("vec2Ruralness"),   legend.hist = TRUE, palette="-RdBu", style = "fisher", n = 6, midpoint = 0, 
+                         legend.reverse = TRUE, title = "Ruralness moderated by eigenvector 2") +
+  tm_layout(legend.outside = TRUE, bg.color = "darkgrey", outer.bg.color = "lightgrey",
+            legend.outside.size = 0.5, attr.outside = TRUE,  legend.outside.position = "left",
+            main.title = "Ruralness by sev 2") + 
+  tm_scale_bar()
+
+tmap_arrange(mRuralVec2, mRural)
+```
+
+```{r, fig.width=11, fig.height=6}
+mRuralVec2 <- kreiseWithCovidMeldeWeeklyCleanedPredictorsAddedSvem %>%
+  mutate(vec2Ruralness =  vec1 * Laendlichkeit) %>%
+  tm_shape() + tm_polygons(col=c("vec2Ruralness"),
+                           legend.hist = TRUE, palette="-RdBu", 
+                           style = "fisher", n = 6, midpoint = 0, 
+                         legend.reverse = TRUE, 
+                         title = "Ruralness moderated by eigenvector 1") +
+  tm_layout(legend.outside = TRUE, bg.color = "darkgrey", outer.bg.color = "lightgrey",
+            legend.outside.size = 0.5, attr.outside = TRUE,  legend.outside.position = "left",
+            main.title = "Ruralness by sev 1") + 
+  tm_scale_bar()
+
+tmap_arrange(mRuralVec2, mRural)
+```
+
+```{r}
+lm.morantest(modelSevmQpInt, listw = unionedListw_d)
+```
+
+```{r}
+kreiseCentroids$residSevmQpInt <- residuals(modelSevmQpInt)
+kreiseCentroids$residSevmQpIntAbs <- abs(kreiseCentroids$residSevmQpInt)
+
+tm_shape(kreiseWithCovidMeldeWeeklyCleanedPredictorsAdded) + 
+  tm_polygons(col="grey") +
+  tm_shape(kreiseCentroids) + 
+  tm_bubbles(size = "residSevmQpIntAbs", col= "residSevmQpInt", palette = "-RdBu", 
+             alpha=.9, perceptual=TRUE, scale=.8, border.alpha=.3, 
+             title.size = "Abs residual", title.col="Residuals", n=5) + 
+  tm_layout(main.title = "Pearson residuals, SEVM QB\nruralness spatial varying coefficient", bg="darkgrey", 
+            legend.outside = TRUE, attr.outside = TRUE) +
+  tm_scale_bar()
+```
+
+```{r}
+modelSevmQpInt2 <- update(modelSevmQpInt,~. + Auslaenderanteil:vec2 )
+summary(modelSevmQpInt2)
+1 - modelSevmQpInt2$deviance / modelSevmQpInt2$null.deviance
+```
+
+If we include the interaction between share of foreigners and sev2 the interaction between ruralness and sev2 becomes insignificant.
+
+```{r}
+modelSevmQpInt2 <- update(modelSevmQpInt2,~. - vec2:Laendlichkeit)
+summary(modelSevmQpInt2)
+1 - modelSevmQpInt2$deviance / modelSevmQpInt2$null.deviance
+```
+
+```{r}
+modelSevmQpInt2 <- update(modelSevmQpInt2,~. - vec1:Laendlichkeit)
+summary(modelSevmQpInt2)
+1 - modelSevmQpInt2$deviance / modelSevmQpInt2$null.deviance
+```
+
+```{r}
+modelSevmQpInt2 <- update(modelSevmQpInt2,~. - Laendlichkeit)
+summary(modelSevmQpInt2)
+1 - modelSevmQpInt2$deviance / modelSevmQpInt2$null.deviance
+```
+
+
+
+```{r, fig.width=11, fig.height=6}
+m1 <- kreiseWithCovidMeldeWeeklyCleanedPredictorsAddedSvem %>%
+  mutate(vec2foreigners =  vec2 * Auslaenderanteil) %>%
+  tm_shape() + tm_polygons(col=c("vec2foreigners"),   legend.hist = TRUE, palette="-RdBu", style = "fisher", n = 6, midpoint = 0, 
+                         legend.reverse = TRUE, title = "Foreigners moderated by eigenvector 2") +
+  tm_layout(legend.outside = TRUE, bg.color = "darkgrey", outer.bg.color = "lightgrey",
+            legend.outside.size = 0.5, attr.outside = TRUE, legend.outside.position = "left",
+            main.title = "Foreigners by sev 2") + 
+  tm_scale_bar()
+
+tmap_arrange(m1, mForeigner)
+```
+
+
+The effect of the share of foreigners differs in space. A potential explanation would be that the effect of the foreign population is moderated by education (at the individual level) as well as by language skills and economic status (of course all factors are interlinked). Also the measures to reach non german speaking inhabitants differs presumably between federal states - leading to potential differences in how those groups obey to rules such as mask wearing, social distancing or with respect to vaccination rates.
+
+Of course there is much more potential to explore relationships between predictors and spatial eigenvectors and we have not even touched on interactions between  "normal" predictors or higher order effects. We could (and should) try other predictor eigenvector combinations as well as interactions between the predictors.
+
+
