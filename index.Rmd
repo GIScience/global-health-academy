@@ -1,0 +1,64 @@
+---
+title: "Overview"
+author: "Sven Lautenbach, Marcel Reinmuth, Steffen Knoblauch"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: true
+      smooth_scroll: true
+    toc_depth: 2
+  rmdformats::readthedown:
+    highlight: kate
+editor_options: 
+  chunk_output_type: inline
+---
+
+This is the overview document on materials for the workshop: **Introduction GIS Tools /spatial epidemiology** at [Global Health Academy](https://global-health-academy.de/).
+
+Authors:
+
+ * [Dr.Sven Lautenbach](https://www.geog.uni-heidelberg.de/gis/lautenbach.html)
+ * [Marcel Reinmuth](https://heigit.org/heigit-team/)
+ * [Steffen Knoblauch](https://www.geog.uni-heidelberg.de/gis/knoblauch.html)
+ 
+ 
+Session description: 
+The workshop will introduce some fundamental concepts of how to work with spatial data by using Covid-19 data for Germany using R and RStudio as the analysis environment. We will cover different possibilities for spatial visualization, measures to identify spatial clusters and will sneak into the definition of spatial neighbourhood definitions and the consideration of spatial regression analysis in presence of spatial auto-correlation. Hands on exercise are part of the workshop. Experience in using R/RStudio will be beneficial but not mandatory as general concepts are transferable to other analysis environments.
+
+
+See here the course details: [Introduction GIS Tools /spatial epidemiology](https://global-health-academy.de/programme/).
+
+
+## How to use these tutorials?
+
+The materials were created with R and the R package `rmarkdown`. The
+source are multiple R-markdown document that can be
+loaded in R, and _executed_ there (just like a Jupyter notebook,
+but simpler). To do this, take the following steps:
+
+1. Go to the [GitHub page](https://github.com/GIScience/global-health-academy) of this course
+2. Click on the file of your interest ending with `.Rmd`
+3. Click on the "Raw" tab
+4. Right-click on that page, "save as", and save it to a local copy of `session.Rmd`
+5. Click (or double-click) on this file, and RStudio should open it, showing the file
+6. In RStudio, click "knit" to recreate the entire rendered document, which _runs all the R chunks_
+7. For running individual R chunks, (notebook "cells"), use the arrows "Run all chunks above", after which you can use "Run current chunk"
+
+
+## Sessions
+
+* [Whats special about spatial](https://giscience.github.io/global-health-academy/01intro.html)
+* [Cartography](https://giscience.github.io/global-health-academy/02cartography.html)
+* [Spatial processes]()
+* [Spatial analysis]()
+
+---
+
+
+[![logo heigit](https://heigit.org/wp-content/uploads/2018/01/HeiGIT_Logo_cut-505x100.png
+ "Logo HeiGIT")](https://heigit.org)
+
+[![logo giscience](https://avatars.githubusercontent.com/u/4661504?s=280&v=4
+ "Logo GIScience")](https://www.geog.uni-heidelberg.de/gis/index.html)
