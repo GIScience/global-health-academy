@@ -49,7 +49,7 @@ Due to limited time, data acquisition and preprocessing will not be covered in t
 In order to be able to run the `*.rmd` files yourself, make sure you have copied the `.Rdata` files from
 [this heiBOX folder](https://heibox.uni-heidelberg.de/d/7e9c2b8b8da24a718575/). 
 
-Alternatively you can run the acquisition and processing from scratch with the []() script.
+Alternatively you can run the acquisition and processing from scratch with the [https://github.com/GIScience/global-health-academy/blob/main/00data_preparation.Rmd](https://github.com/GIScience/global-health-academy/blob/main/00data_preparation.Rmd) script.
 
 ## Sessions
 
