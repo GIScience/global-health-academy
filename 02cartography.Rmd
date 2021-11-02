@@ -66,7 +66,7 @@ kreiseWithCovidMeldeWeeklyCleaned_dorling <- kreiseWithCovidMeldeWeeklyCleaned %
 
 
 
-```{r droling cartogram, echo=T, out.width="100%"}
+```{r dorling cartogram, echo=T, out.width="100%"}
 plot(kreiseWithCovidMeldeWeeklyCleaned["current_incidence"])
 
 
@@ -294,10 +294,12 @@ knitr::include_graphics("https://www.joshuastevens.net/images/js_bivariateMix.gi
 
 Below an example of incidence all cases per Kreis and supply of broadband connection.
 
+In order to create a bivariate map, you need to make sure you have a local copy of  [https://github.com/GIScience/global-health-academy/blob/main/auxiliary/bivariate_maps.R](https://github.com/GIScience/global-health-academy/blob/main/auxiliary/bivariate_maps.R)
+
 
 
 ```{r bivariate,  out.width="100%", echo=T}
-source("aux/bivariate_maps.R")
+source("auxiliary/bivariate_maps.R")
 
 legend.viewport <- viewport(
   x = .2,
