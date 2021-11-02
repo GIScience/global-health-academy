@@ -68,11 +68,28 @@ Alternatively you can run the acquisition and processing from scratch with the [
 * install the following packages within R
 
 ```{r, echo=TRUE, eval=F}
-pkgs <- c("rmdformats","tidyverse","ggplot2","lubridate","sf","zoo","spdep","tmap","tidyquant","readODS","knitr","animation","cartogram","kableExtra","pals","sf","ggpubr","GGally","MASS")
+pkgs <- c("rmdformats","tidyverse","ggplot2","lubridate","sf","zoo","spdep",
+          "tmap","tidyquant","readODS","knitr","animation","cartogram",
+          "kableExtra","pals","sf","ggpubr","GGally","MASS", "classInt", 
+          "lattice", "latticeExtra", "grid", "gridExtra")
+
+# on windows you might need to install the package directly from github
+install.packages("devtools")
+devtools::install_github("ge11232002/latticeExtra")
 
 install.packages(pkgs)
 ```
 
+---
+
+## More from HeiGIT / GIScience
+
+Interested in our work?
+Check out our Blog and websites:
+
+* [http://k1z.blog.uni-heidelberg.de/category/research/public-health-research/](http://k1z.blog.uni-heidelberg.de/category/research/public-health-research/)
+* [https://heigit.org/](https://heigit.org/)
+* [https://www.geog.uni-heidelberg.de/gis/index_en.html](https://www.geog.uni-heidelberg.de/gis/index_en.html)
 
 ---
 
