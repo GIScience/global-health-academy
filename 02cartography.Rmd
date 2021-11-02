@@ -170,6 +170,21 @@ With the `cartograms` package we can transform our areal units by the population
 2. The area distorted cartogram [(Dougenik et al. 1985)](https://doi.org/10.1111/j.0033-0124.1985.00075.x) expands/shrinks polygons via a rubber sheet distortion algorithm
 3. The dorling cartogram [(Dorling 1996)](https://ora.ox.ac.uk/objects/uuid:5e9483f5-3e1c-4038-b10f-d09c5767c285) builds non-overlapping circles where the size represents attribute for normalization.
 
+```{r, echo=T, eval=F}
+load("data/kreiseWithCovidMeldedatumWeekly.Rdata")
+
+# point distribution map
+kreiseWithCovidMeldeWeeklyCleaned_pts10k <- kreiseWithCovidMeldeWeeklyCleaned %>% rowwise() %>% mutate(
+geometry=st_union(st_sample(geometry, size = EWZ / 10000)))
+
+# area distorted
+kreiseWithCovidMeldeWeeklyCleaned_cart <- kreiseWithCovidMeldeWeeklyCleaned %>% cartogram_cont("EWZ")
+
+# dorling
+kreiseWithCovidMeldeWeeklyCleaned_dorling <- kreiseWithCovidMeldeWeeklyCleaned %>% cartogram_dorling("EWZ")
+
+```
+
 ```{r cartograms,  out.width="100%"}
 # point distribution
 tm_shape(kreiseWithCovidMeldeWeeklyCleaned) + tm_fill(col = "grey70", lwd = .5) +

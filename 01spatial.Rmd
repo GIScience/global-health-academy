@@ -36,18 +36,6 @@ opts_knit$set(width=75)
 ```
 ## What is (Geo) Spatial Data?
 
-All data are spatial - data comes from observation, and observation needs to happen somewhere and at some time. This makes all data spatial. For a lot of data, the location expressed in spatial, Earth-bound coordinates of observation is not of prime importance:
-
-  * if a patient undergoes a brain scan, the location of the scanner is not important; the location of the person relative to the scanner is
-  *  if a person receives a positive COVID-19 test result, the location of testing may not be important for the person’s decision on whether to go into quarantine or not
-  * for someone trying to do contact tracing, this person’s location history may be most relevant, however
-
-With spatial data we mean data for which spatial locations (or relations) are known, and for which they play a role in the exploration, analysis or visualization of the data.
-
-_by Edzer Pebesma_
-
-Another explanation:
-
 **Spatial data** is information about a phenomena organized in a spatial frame - the geographic frame
 
 **Spatial analysis** then is a collection of methods applied to spatial data that
@@ -58,7 +46,7 @@ Another explanation:
 
 GeoData and spatial data? Often used synonymous. Geo explicitly means earth as the spatial reference
 
-Geographic Information Systems is another term often used to describe spatial data or spatial analysis.
+**Geographic Information Systems (GIS)** is another term often used to describe spatial data or spatial analysis.
 Often it refers to (desktop) software that is driven at its heart by spatial data but has many other tasks besides spatial analysis such as visualization, editing and management.
 
 **Layer Principle**
@@ -119,6 +107,7 @@ The geometry attribute has properties that can be used with geometric methods. S
 
 
 ![](https://static.packt-cdn.com/products/9781783555079/graphics/50790OS_06_01.jpg "https://subscription.packtpub.com/book/big+data+and+business+intelligence/9781783555079/6/ch06lvl1sec45/introduction")
+
 [https://subscription.packtpub.com/book/big+data+and+business+intelligence/9781783555079/6/ch06lvl1sec45/introduction](https://subscription.packtpub.com/book/big+data+and+business+intelligence/9781783555079/6/ch06lvl1sec45/introduction)
 
 

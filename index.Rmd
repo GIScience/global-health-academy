@@ -71,7 +71,7 @@ Alternatively you can run the acquisition and processing from scratch with the [
 pkgs <- c("rmdformats","tidyverse","ggplot2","lubridate","sf","zoo","spdep",
           "tmap","tidyquant","readODS","knitr","animation","cartogram",
           "kableExtra","pals","sf","ggpubr","GGally","MASS", "classInt", 
-          "lattice", "latticeExtra", "grid", "gridExtra")
+          "lattice", "latticeExtra", "grid", "gridExtra", "dbscan")
 
 # on windows you might need to install the package directly from github
 install.packages("devtools")
