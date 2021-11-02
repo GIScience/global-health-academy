@@ -1,5 +1,5 @@
 ---
-title: "Overview"
+title: "Introduction GIS Tools /spatial epidemiology"
 author: "Sven Lautenbach, Marcel Reinmuth, Steffen Knoblauch"
 date: "`r Sys.Date()`"
 output:
@@ -46,8 +46,8 @@ but simpler). To do this, take the following steps:
 **Data**
 
 Due to limited time, data acquisition and preprocessing will not be covered in the workshop.
-In order to be able to run the `*.rmd` files yourself, make sure you have copied the `.Rdata` files from
-[this heiBOX folder](https://heibox.uni-heidelberg.de/d/7e9c2b8b8da24a718575/). 
+In order to be able to run the `.Rmd` files yourself, make sure you have copied the `.Rdata` files from
+[this heiBOX folder](https://heibox.uni-heidelberg.de/d/7e9c2b8b8da24a718575/) in a `data/` fodler next to your `.Rmd` files. 
 
 Alternatively you can run the acquisition and processing from scratch with the [https://github.com/GIScience/global-health-academy/blob/main/00data_preparation.Rmd](https://github.com/GIScience/global-health-academy/blob/main/00data_preparation.Rmd) script.
 
@@ -78,6 +78,14 @@ install.packages("devtools")
 devtools::install_github("ge11232002/latticeExtra")
 
 install.packages(pkgs)
+```
+
+The following version and setup was used to built this tutorials
+
+```
+R version 4.1.1 (2021-08-10)
+Platform: x86_64-pc-linux-gnu (64-bit)
+Running under: Ubuntu 20.04.3 LTS
 ```
 
 ---
