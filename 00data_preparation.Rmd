@@ -27,6 +27,9 @@ require(readODS)
 **Execute this chunk to download all processed data from HeiBOX (no auto eval.)**
 
 ```{r, eval=F}
+
+
+# download preprocessed files from heiBox
 options(timeout = 10000)
 download.file("https://heibox.uni-heidelberg.de/f/73543894e5bf480098a7/?dl=1", destfile = "data/berlin_bezirke.gpkg")
 
@@ -94,7 +97,7 @@ if (!file.exists("data/vg250-ew_12-31.utm32s.shape.ebenen/vg250-ew_ebenen_1231/V
     mode = 'wb'
   )
   unzip(zipfile = "data/vg250-ew_12-31.utm32s.shape.ebenen.zip",
-        exdir = "data/")
+        exdir = "data")
 }
 ```
 
