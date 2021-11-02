@@ -40,6 +40,8 @@ load("data/kreiseWithCovidMeldedatumWeekly.Rdata")
 load("data/nationalAggCases.Rdata")
 ```
 
+## Preparation
+
 Get the field names for the dates for which we have data - these will be used in the loops. Since all fields have the same prefix we can easily get their indices by a regular expression (with *grep*). These indices are then used to subset the field names vector of the data frame. For plot labeling we drop the prefix and store the names in a different vector of same size.
 
 ```{r}
@@ -48,6 +50,14 @@ namesCaseFieldPosition <-  names(kreiseWithCovidMeldeWeeklyCleaned)[idxCaseField
 # strip prefix
 dateStrVec <- gsub(pattern = "casesWeek_", replacement = "", x = namesCaseFieldPosition)
 ```
+
+## What are neighbors?
+
+```{r}
+tm_shape(kreiseWithCovidMeldeWeeklyCleaned) + tm_borders()
+```
+
+
 
 ## Defining neighborhoods and the spatial weight Matrix W
 
@@ -71,7 +81,7 @@ To assess the usefulness of a neighborhood for the question at hand one might co
   - are there island (observations without neighbors)? Is it useful to consider these as real island or are there connections in the real world? An island might be connected by ferry, bridge or airplane to other spatial units so it might be good to incorporate that link manually. Island cause problems for the upcoming analysis steps and their interpretation so it is good to ensure that they are required.
   - is the neighborhood definition symmetric? k-nearest neighborhood definitions frequently lead to asymmetric neighborhoodd definitions that are problematic for analysis and interpretation. It is possible to make asymmetric neighborhood definitions symmetric by a union of the upper and lower triangular part of the adjacency matrix.
   
-It is possible to adjust the weight of neighbors based on additional information. Distance is frequently used for this purpose by defining an inversely weighted approach ($w_{i,j} = \frac{1}{dist_{i,j}^p}$ with p as a tuning parameter to specify how strongly weights drop with distance).
+It is possible to adjust the weight of neighbors based on additional information. Distance is frequently used for this purpose by defining an inversely weighted approach ($w_{i,j} = \frac{1}{dist_{i,j}^p}$) with p as a tuning parameter to specify how strongly weights drop with distance).
 
 In an additional step we need to create the weight matrix $W$ from the (potentially distance weighted) neighborhood matrix $C$. In R $W$ is represented as a weighted list. The following options exist:
 
