@@ -3,13 +3,12 @@ title: "Spatial regression analysis for the total number of covid-19 cases over 
 author: "Sven Lautenbach"
 date: "`r Sys.Date()`"
 output:
-    rmdformats::readthedown:
+ rmdformats::readthedown:
     highlight: kate
     gallery: TRUE
     lightbox: TRUE
     thumbnails: TRUE
 ---
-
 
 ```{r setup, include=FALSE}
 library(knitr)
