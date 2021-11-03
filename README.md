@@ -15,4 +15,3 @@ Workshop materials for the [Global Health Academy](https://global-health-academy
 See here the course details: [Introduction GIS Tools /spatial epidemiology](https://global-health-academy.de/programme/).
 
 
-add license here.
