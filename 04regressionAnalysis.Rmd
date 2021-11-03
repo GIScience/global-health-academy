@@ -493,7 +493,7 @@ The idea behind the spatial eigenvector mapping approach is to use additional co
 
 The function *ME* uses brute force eigenvector selection to reach a subset of such vectors to be added to the RHS of the GLM model to reduce residual autocorrelation to below the specified alpha value (defaults to 0.05). Since eigenvector selection only works on symmetric weights, the weights are made symmetric beforehand.
 
-```{r, cache= TRUE}
+```{r}
 meQp <- spatialreg::ME(sumCasesTotal ~ Stimmenanteile.AfD + Auslaenderanteil +
                          Hochqualifizierte + Langzeitarbeitslosenquote + 
                          Einpendler + Laendlichkeit, 
@@ -522,7 +522,7 @@ The procedure added `r ncol(fitted(meQp))` spatial eigenvectors to the model. To
 
 Rurality of the district and the share of commuter now became insignificant so we might want to drop tzem step by step from the model.
 
-```{r, cache= TRUE}
+```{r}
 meQp <- spatialreg::ME(sumCasesTotal ~ Stimmenanteile.AfD + Auslaenderanteil + 
                          Hochqualifizierte + Laendlichkeit,
                        family = quasipoisson, 
@@ -541,7 +541,7 @@ modelSevmQp <- glm(sumCasesTotal ~ Stimmenanteile.AfD + Auslaenderanteil +
 summary(modelSevmQp)
 ```
 
-```{r, cache= TRUE}
+```{r}
 meQp <- spatialreg::ME(sumCasesTotal ~ Stimmenanteile.AfD + Auslaenderanteil + 
                          Hochqualifizierte,
                        family = quasipoisson, 
@@ -589,7 +589,7 @@ The spatial eigenvectors included in the model capture broadly speaking:
   
 The spatial eigenvectors might help us to derive hypothesis about missing covariates that could be incorporated in the model. In any case they absorbe a good share of the spatial autocorrelation in the residuals.
 
-## Rechecking spatial autocorrelation
+### Rechecking spatial autocorrelation
 
 ```{r}
 (moranSevmQp <- lm.morantest(modelSevmQp, listw = unionedListw_d))
@@ -612,9 +612,10 @@ tm_shape(kreiseWithCovidMeldeWeeklyCleanedPredictorsAdded) +
             legend.outside = TRUE, attr.outside = TRUE) +
   tm_scale_bar()
 ```
-## Spatial varying coefficients?
 
-### Shar of foreigners
+# Spatial varying coefficients?
+
+## Share of foreigners
 
 We could use the eigenvectors to analyse is regression coefficients (and thereby the effect of predictors) vary in space. We will show this at the example of the share of foreigners.
 
