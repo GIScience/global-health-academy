@@ -21,8 +21,10 @@ require(spdep)
 require(ggpubr)
 require(ggplot2)
 require(tidyverse)
+require(dplyr)
 require(tmap)
 require(animation)
+library(lubridate)
 
 ## Global options
 options(max.print="75")
