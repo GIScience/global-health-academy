@@ -227,9 +227,11 @@ hist(unlist(unionedListw_d$weights), las=1, xlab="weights", main="unioned contig
 
 Let's now calculate the global Moran's I as a measur of global spatial autocorrelation.
 
-$$I = \frac{n}{W} \frac{\sum_i \sum_j w_{ij} (x_i - \bar{x}) (x_j - \bar{x})) } {(\sum_i (x_i - \bar{x})^2)}$$
+$$I = \frac{n}{S_0} \frac{\sum_i \sum_j w_{ij} (x_i - \bar{x}) (x_j - \bar{x})) } {(\sum_i (x_i - \bar{x})^2)}$$
 
-With $i$ and $j$ indices of the districts, $W$ the spatial weight matrix and $w_{ij}$ elements of $W$.
+With $i$ and $j$ indices of the districts, $S_0$ the global sum of the weights in weight matrix $W$ and $w_{ij}$ elements of $W$. 
+
+$$ S_0 = \sum_i \sum_j w_{ij}$$
 
 The range of Moran's I depends on the largest and second largest eigenvalue of the weight matrix $W$
 Often the interval is in the range -0.5 to 1.15
