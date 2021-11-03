@@ -8,6 +8,9 @@ output:
     gallery: TRUE
     lightbox: TRUE
     thumbnails: TRUE
+    includes:
+      after_body: footer.html
+  
 ---
 
 This is the overview document on materials for the workshop: **Introduction GIS Tools /spatial epidemiology** at [Global Health Academy](https://global-health-academy.de/).
@@ -99,11 +102,4 @@ Check out our Blog and websites:
 * [https://heigit.org/](https://heigit.org/)
 * [https://www.geog.uni-heidelberg.de/gis/index_en.html](https://www.geog.uni-heidelberg.de/gis/index_en.html)
 
----
 
-
-[![logo heigit](https://heigit.org/wp-content/uploads/2018/01/HeiGIT_Logo_cut-505x100.png
- "Logo HeiGIT")](https://heigit.org)
-
-[![logo giscience](https://avatars.githubusercontent.com/u/4661504?s=280&v=4
- "Logo GIScience")](https://www.geog.uni-heidelberg.de/gis/index.html)

@@ -8,6 +8,8 @@ output:
     gallery: TRUE
     lightbox: TRUE
     thumbnails: TRUE
+    includes:
+      after_body: footer.html
 ---
 
 ```{r setup, include=FALSE}
