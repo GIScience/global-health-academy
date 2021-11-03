@@ -66,7 +66,7 @@ tm_shape() + tm_polygons(col=c("incidenceTotal"),
 The accumulated number of covid-19 cases over the whole period is clearly spatially structured as indicated by the empirical bayes index modification of Moran's I.
 
 ```{r}
-EBImoran.mc(n= kreiseWithCovidMeldeWeeklyCleanedPredictorsAdded$incidenceTotal,
+EBImoran.mc(n= kreiseWithCovidMeldeWeeklyCleanedPredictorsAdded$sumCasesTotal,
               x= kreiseWithCovidMeldeWeeklyCleanedPredictorsAdded$EWZ, listw = unionedListw_d, nsim =999)
 ```
 
