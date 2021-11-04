@@ -14,4 +14,26 @@ Workshop materials for the [Global Health Academy](https://global-health-academy
 
 See here the course details: [Introduction GIS Tools /spatial epidemiology](https://global-health-academy.de/programme/).
 
+## Dev Setup
+
+This R project uses [renv](https://rstudio.github.io/renv/index.html) for package/library management.
+
+Clone the repository
+
+```bash
+$ git clone https://github.com/GIScience/global-health-academy.git
+```
+
+Manually open the folder as project from within Rstudio or just execute:
+
+```bash
+$ cd global-health-academy
+$ rstudio
+```
+
+Renv will be automatically recognized by R. To locally restore the packages/libraries form renv.lock file execute:
+
+```r
+renv::restore()
+```
 
